@@ -1,0 +1,41 @@
+name: Create Android signing key (run once)
+
+# Generates a release keystore inside GitHub Actions and attaches it as a
+# private artifact (kept 1 day). Download it, add the three values as
+# repository secrets, keep the .keystore file as a backup, and do not run
+# this again: a new key would stop updates over the installed app.
+on:
+  workflow_dispatch:
+
+jobs:
+  key:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Generate keystore
+        run: |
+          mkdir out
+          PW=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-28)
+          keytool -genkeypair -keystore out/release.keystore -storetype PKCS12 \
+            -alias eterotv -keyalg RSA -keysize 2048 -validity 20000 \
+            -storepass "$PW" -keypass "$PW" -dname "CN=EteroTV, O=Personal, C=CA"
+          base64 -w0 out/release.keystore > out/ANDROID_KEYSTORE_BASE64.txt
+          printf '%s' "$PW" > out/ANDROID_KEYSTORE_PASSWORD.txt
+          printf 'eterotv' > out/ANDROID_KEY_ALIAS.txt
+          keytool -list -v -keystore out/release.keystore -storepass "$PW" \
+            | grep -E 'SHA1:|SHA256:' > out/fingerprints.txt
+          cat > out/README.txt <<'EOF'
+          1. In GitHub: Settings > Secrets and variables > Actions > New repository secret.
+          2. Create three secrets. Name = file name without .txt, value = file content:
+             ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS
+          3. Keep release.keystore and the password somewhere safe (backup).
+          4. Delete this download from your computer when done.
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-signing-key
+          path: out/
+          retention-days: 1
