@@ -33,19 +33,27 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final db = AppDatabase((await databaseFactoryFfi.openDatabase(inMemoryDatabasePath)));
       await AppDatabase.createTables(db.db);
-      await db.replaceCatalog(Kind.movie, [Category(Kind.movie, '1', 'Acción'), Category(Kind.movie, '2', 'Drama')], [
-        CatalogItem(kind: Kind.movie, id: 'a', name: 'Película Uno', categoryId: '1'),
-        CatalogItem(kind: Kind.movie, id: 'b', name: 'Otra cosa', categoryId: '1'),
-        CatalogItem(kind: Kind.movie, id: 'c', name: 'Pelicula Dos', categoryId: '2'),
-      ]);
+      await db.replaceCatalog(
+        Kind.movie,
+        [Category(Kind.movie, '1', 'Acción'), Category(Kind.movie, '2', 'Drama')],
+        [
+          CatalogItem(kind: Kind.movie, id: 'a', name: 'Película Uno', categoryId: '1'),
+          CatalogItem(kind: Kind.movie, id: 'b', name: 'Otra cosa', categoryId: '1'),
+          CatalogItem(kind: Kind.movie, id: 'c', name: 'Pelicula Dos', categoryId: '2'),
+        ],
+      );
       state = AppState(db: db, prefs: await SharedPreferences.getInstance(), deviceId: 't', vlc: _NoVlc());
       await state.toggleFavorite(CatalogItem(kind: Kind.movie, id: 'c', name: 'Pelicula Dos', categoryId: '2'));
     });
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(ChangeNotifierProvider.value(
-        value: state, child: const MaterialApp(home: BrowseScreen(kind: Kind.movie))));
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: state,
+        child: const MaterialApp(home: BrowseScreen(kind: Kind.movie)),
+      ),
+    );
     await settle(tester);
     expect(find.text('A medias'), findsWidgets);
     expect(find.text('Favoritos'), findsWidgets);

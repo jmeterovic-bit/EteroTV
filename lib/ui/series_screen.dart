@@ -71,44 +71,53 @@ class _SeriesScreenState extends State<SeriesScreen> {
     final next = info == null ? null : nextEpisode(info, s);
     final seasons = info == null ? <int>[] : (info.seasons.keys.toList()..sort());
     return Scaffold(
-      appBar: AppBar(title: Text(widget.item.name), actions: [
-        IconButton(
-          tooltip: fav ? 'Quitar de favoritos' : 'Agregar a favoritos',
-          icon: Icon(fav ? Icons.star : Icons.star_border, color: fav ? Colors.amber : null),
-          onPressed: () => s.toggleFavorite(widget.item),
-        ),
-      ]),
+      appBar: AppBar(
+        title: Text(widget.item.name),
+        actions: [
+          IconButton(
+            tooltip: fav ? 'Quitar de favoritos' : 'Agregar a favoritos',
+            icon: Icon(fav ? Icons.star : Icons.star_border, color: fav ? Colors.amber : null),
+            onPressed: () => s.toggleFavorite(widget.item),
+          ),
+        ],
+      ),
       body: _error != null
           ? Center(child: Text('No se pudo cargar la serie: $_error'))
           : info == null
-              ? const Center(child: CircularProgressIndicator())
-              : ListView(padding: const EdgeInsets.all(16), children: [
-                  if (info.plot.isNotEmpty) Text(info.plot, maxLines: 4, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 12),
-                  if (next != null)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: FilledButton.icon(
-                        autofocus: true,
-                        icon: const Icon(Icons.play_arrow),
-                        label: Text('Ver T${next.season} E${next.number}'),
-                        onPressed: () => playWithChecks(context, (st) => st.playEpisode(widget.item, next)),
-                      ),
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (info.plot.isNotEmpty) Text(info.plot, maxLines: 4, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 12),
+                if (next != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.icon(
+                      autofocus: true,
+                      icon: const Icon(Icons.play_arrow),
+                      label: Text('Ver T${next.season} E${next.number}'),
+                      onPressed: () => playWithChecks(context, (st) => st.playEpisode(widget.item, next)),
                     ),
-                  const SizedBox(height: 12),
-                  FocusTraversalGroup(
-                    child: Wrap(spacing: 8, children: [
+                  ),
+                const SizedBox(height: 12),
+                FocusTraversalGroup(
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
                       for (final n in seasons)
                         ChoiceChip(
                           label: Text('Temporada $n'),
                           selected: n == _season,
                           onSelected: (_) => setState(() => _season = n),
                         ),
-                    ]),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  for (final ep in info.seasons[_season] ?? const <Episode>[]) _EpisodeTile(series: widget.item, ep: ep),
-                ]),
+                ),
+                const SizedBox(height: 8),
+                for (final ep in info.seasons[_season] ?? const <Episode>[]) _EpisodeTile(series: widget.item, ep: ep),
+              ],
+            ),
     );
   }
 }
@@ -128,19 +137,24 @@ class _EpisodeTile extends StatelessWidget {
       leading: CircleAvatar(child: Text('${ep.number}')),
       title: Text(ep.title.isEmpty ? 'Episodio ${ep.number}' : ep.title),
       subtitle: started
-          ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const SizedBox(height: 4),
-              LinearProgressIndicator(value: fraction(e.positionSecs, dur)),
-              Text(progressLabel(e.positionSecs, dur)),
-            ])
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                LinearProgressIndicator(value: fraction(e.positionSecs, dur)),
+                Text(progressLabel(e.positionSecs, dur)),
+              ],
+            )
           : (dur > 0 ? Text(formatTime(dur)) : null),
       onTap: () => playWithChecks(context, (st) => st.playEpisode(series, ep)),
       trailing: e == null
           ? null
           : IconButton(
               tooltip: e.watched ? 'Marcar como no visto' : 'Marcar como visto',
-              icon: Icon(e.watched ? Icons.check_circle : Icons.check_circle_outline,
-                  color: e.watched ? Colors.greenAccent : null),
+              icon: Icon(
+                e.watched ? Icons.check_circle : Icons.check_circle_outline,
+                color: e.watched ? Colors.greenAccent : null,
+              ),
               onPressed: () => s.setWatched(e, !e.watched),
             ),
     );

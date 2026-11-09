@@ -9,8 +9,10 @@ import 'package:http/testing.dart';
 void main() {
   test('server URL is reduced to its origin', () {
     expect(Credentials.normalizeServer('example.com:8080/'), 'http://example.com:8080');
-    expect(Credentials.normalizeServer(' https://tv.example.com/get.php?username=a&password=b '),
-        'https://tv.example.com');
+    expect(
+      Credentials.normalizeServer(' https://tv.example.com/get.php?username=a&password=b '),
+      'https://tv.example.com',
+    );
     expect(Credentials.normalizeServer('http://1.2.3.4:25461'), 'http://1.2.3.4:25461');
   });
 
@@ -34,19 +36,22 @@ void main() {
       expect(req.url.path, '/player_api.php');
       expect(req.url.queryParameters['username'], 'jose');
       return http.Response(
-          jsonEncode({
-            'user_info': {
-              'auth': 1,
-              'status': 'Active',
-              'exp_date': '1893456000',
-              'max_connections': '2',
-              'active_cons': '2',
-            },
-          }),
-          200);
+        jsonEncode({
+          'user_info': {
+            'auth': 1,
+            'status': 'Active',
+            'exp_date': '1893456000',
+            'max_connections': '2',
+            'active_cons': '2',
+          },
+        }),
+        200,
+      );
     });
-    final x = XtreamClient(Credentials(server: 'tv.example.com:8080', username: 'jose', password: 'p w'),
-        client: mock);
+    final x = XtreamClient(
+      Credentials(server: 'tv.example.com:8080', username: 'jose', password: 'p w'),
+      client: mock,
+    );
     final a = await x.account();
     expect(a.maxConnections, 2);
     expect(a.full, isTrue);
@@ -54,8 +59,18 @@ void main() {
   });
 
   test('wrong password is reported', () async {
-    final mock = MockClient((_) async => http.Response(jsonEncode({'user_info': {'auth': 0}}), 200));
-    final x = XtreamClient(Credentials(server: 'x', username: 'a', password: 'b'), client: mock);
+    final mock = MockClient(
+      (_) async => http.Response(
+        jsonEncode({
+          'user_info': {'auth': 0},
+        }),
+        200,
+      ),
+    );
+    final x = XtreamClient(
+      Credentials(server: 'x', username: 'a', password: 'b'),
+      client: mock,
+    );
     expect(x.account(), throwsA(isA<XtreamException>()));
   });
 
@@ -68,7 +83,14 @@ void main() {
 
   test('parse lists', () {
     final live = parseItems(Kind.live, [
-      {'num': 1, 'name': 'Canal 1 HD', 'stream_id': 101, 'stream_icon': 'http://i/1.png', 'epg_channel_id': 'c1.es', 'category_id': '5'},
+      {
+        'num': 1,
+        'name': 'Canal 1 HD',
+        'stream_id': 101,
+        'stream_icon': 'http://i/1.png',
+        'epg_channel_id': 'c1.es',
+        'category_id': '5',
+      },
       {'name': 'no id'},
     ]);
     expect(live, hasLength(1));
@@ -76,7 +98,14 @@ void main() {
     expect(live.first.epgId, 'c1.es');
 
     final series = parseItems(Kind.series, [
-      {'series_id': '33', 'name': 'Serie', 'cover': 'http://c', 'releaseDate': '2019-05-01', 'category_id': 2, 'tmdb': '1399'},
+      {
+        'series_id': '33',
+        'name': 'Serie',
+        'cover': 'http://c',
+        'releaseDate': '2019-05-01',
+        'category_id': 2,
+        'tmdb': '1399',
+      },
     ]);
     expect(series.first.id, '33');
     expect(series.first.year, '2019');
@@ -89,8 +118,22 @@ void main() {
       'info': {'plot': 'Trama'},
       'episodes': {
         '1': [
-          {'id': '2', 'episode_num': 2, 'title': 'B', 'season': 1, 'container_extension': 'mkv', 'info': {'duration_secs': 2700}},
-          {'id': '1', 'episode_num': '1', 'title': 'A', 'season': '1', 'container_extension': 'mkv', 'info': {'duration': '00:44:00'}},
+          {
+            'id': '2',
+            'episode_num': 2,
+            'title': 'B',
+            'season': 1,
+            'container_extension': 'mkv',
+            'info': {'duration_secs': 2700},
+          },
+          {
+            'id': '1',
+            'episode_num': '1',
+            'title': 'A',
+            'season': '1',
+            'container_extension': 'mkv',
+            'info': {'duration': '00:44:00'},
+          },
         ],
         '2': [
           {'id': '3', 'episode_num': 1, 'title': 'C', 'season': 2, 'info': []},
@@ -113,14 +156,23 @@ void main() {
   });
 
   test('https on a plain-http port is reported clearly', () async {
-    final mock = MockClient((_) async => throw const HandshakeException(
-        'Handshake error in client (OS Error: WRONG_VERSION_NUMBER(tls_record.cc:127))'));
-    final x = XtreamClient(Credentials(server: 'https://h:2052', username: 'a', password: 'b'), client: mock);
+    final mock = MockClient(
+      (_) async => throw const HandshakeException(
+        'Handshake error in client (OS Error: WRONG_VERSION_NUMBER(tls_record.cc:127))',
+      ),
+    );
+    final x = XtreamClient(
+      Credentials(server: 'https://h:2052', username: 'a', password: 'b'),
+      client: mock,
+    );
     await expectLater(
-        x.account(),
-        throwsA(isA<XtreamException>()
+      x.account(),
+      throwsA(
+        isA<XtreamException>()
             .having((e) => e.tlsMismatch, 'tlsMismatch', isTrue)
-            .having((e) => e.message, 'message', contains('http://'))));
+            .having((e) => e.message, 'message', contains('http://')),
+      ),
+    );
     expect(x.creds.withHttp().server, 'http://h:2052');
   });
 }

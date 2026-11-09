@@ -21,8 +21,7 @@ class VlcMissing implements Exception {
 /// Opens a video in VLC (the app has no player of its own) and finds out
 /// where the user stopped.
 abstract class VlcLauncher {
-  static VlcLauncher forPlatform() =>
-      Platform.isAndroid ? AndroidVlc() : DesktopVlc();
+  static VlcLauncher forPlatform() => Platform.isAndroid ? AndroidVlc() : DesktopVlc();
 
   Future<bool> available();
 
@@ -45,15 +44,15 @@ class AndroidVlc extends VlcLauncher {
   @override
   Future<PlayResult?> play(String url, {required String title, int startSecs = 0}) async {
     try {
-      final r = await _ch.invokeMapMethod<String, Object?>(
-          'play', {'url': url, 'title': title, 'positionMs': startSecs * 1000});
+      final r = await _ch.invokeMapMethod<String, Object?>('play', {
+        'url': url,
+        'title': title,
+        'positionMs': startSecs * 1000,
+      });
       if (r == null) return null;
       final pos = (r['positionMs'] as num?)?.toInt() ?? -1;
       final dur = (r['durationMs'] as num?)?.toInt() ?? -1;
-      return PlayResult(
-        positionSecs: pos >= 0 ? pos ~/ 1000 : null,
-        durationSecs: dur > 0 ? dur ~/ 1000 : null,
-      );
+      return PlayResult(positionSecs: pos >= 0 ? pos ~/ 1000 : null, durationSecs: dur > 0 ? dur ~/ 1000 : null);
     } on PlatformException catch (e) {
       if (e.code == 'no_vlc') throw VlcMissing();
       rethrow;
@@ -122,9 +121,7 @@ class DesktopVlc extends VlcLauncher {
       await Future.any([exit, Future<void>.delayed(pollEvery)]);
       if (exited) break;
       try {
-        final r = await client
-            .get(status, headers: {'Authorization': auth})
-            .timeout(const Duration(seconds: 3));
+        final r = await client.get(status, headers: {'Authorization': auth}).timeout(const Duration(seconds: 3));
         if (r.statusCode == 200) tracker.add(jsonDecode(r.body) as Map<String, dynamic>);
       } catch (_) {
         // VLC still starting, or closing: try again next round.

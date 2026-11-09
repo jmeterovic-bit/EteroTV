@@ -22,6 +22,7 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | Detectar VLC en Android | No se bloquea la reproducción por la revisión previa: se intenta abrir VLC y solo si Android no lo encuentra se avisa | En el celular de Jose la búsqueda por nombre de paquete decía que no estaba aunque sí estaba (2026-11-09). |
 | Carpetas propias | «A medias» (películas y series) y «Favoritos» van primero en cada categoría | Pedido por Jose el 2026-11-09 tras la primera prueba. |
 | Búsqueda | Buscador en cada categoría con opción «Solo en <carpeta>» o «En todo <categoría>»; sin acentos y por palabras | Pedido por Jose el 2026-11-09. |
+| Diseño | Estilo streaming: pestañas (abajo en celular, lateral en TV/PC), destacado, «Continuar viendo» con progreso, «Mi lista» y filas por categoría con «Ver todo»; las carpetas y el buscador quedan detrás de «Carpetas y búsqueda» | Pedido por Jose el 2026-11-09; aprobó el boceto (`eterotv/boceto-netflix.png`). Diseño propio, no copia de Netflix. |
 | Firma Android | Workflow «Create Android signing key» (una vez) y secretos `ANDROID_KEYSTORE_*` | Sin clave fija, cada APK se firma con una clave temporal y no se instala encima del anterior. |
 
 ## Pendiente
@@ -42,3 +43,4 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | 2026-11-08 | Etapa 1 (v0.1.0): conexión Xtream, catálogo local, favoritos, progreso, VLC en Android y Windows, búsqueda, favoritos perdidos, script Fire TV, CI. |
 | 2026-11-09 | v0.1.1: ícono propio y banner de TV; reintento automático con http y mensajes de conexión en español. |
 | 2026-11-09 | v0.1.1 (cont.): carpetas A medias y Favoritos, buscador por categoría, detección de VLC más tolerante. |
+| 2026-11-09 | v0.2.0: diseño nuevo estilo streaming (Inicio con destacado y filas, pestañas por tipo, menú ⋮ en Continuar viendo). |

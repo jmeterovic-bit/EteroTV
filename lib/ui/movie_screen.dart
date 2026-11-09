@@ -22,9 +22,13 @@ class _MovieScreenState extends State<MovieScreen> {
   void initState() {
     super.initState();
     final x = context.read<AppState>().client;
-    x?.movieInfo(widget.item.id).then((i) {
-      if (mounted) setState(() => _info = i);
-    }).catchError((_) {}).whenComplete(x.close);
+    x
+        ?.movieInfo(widget.item.id)
+        .then((i) {
+          if (mounted) setState(() => _info = i);
+        })
+        .catchError((_) {})
+        .whenComplete(x.close);
   }
 
   @override
@@ -39,55 +43,66 @@ class _MovieScreenState extends State<MovieScreen> {
       appBar: AppBar(title: Text(widget.item.name)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Wrap(spacing: 24, runSpacing: 16, children: [
-          SizedBox(width: 200, child: AspectRatio(aspectRatio: 2 / 3, child: NetImage(widget.item.icon))),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(widget.item.name, style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 4),
-              Text([if (widget.item.year.isNotEmpty) widget.item.year, if (dur > 0) formatTime(dur)].join(' · ')),
-              if (canResume) ...[
-                const SizedBox(height: 8),
-                LinearProgressIndicator(value: fraction(pos, dur)),
-                Text('Vas en ${progressLabel(pos, dur)}'),
-              ],
-              const SizedBox(height: 16),
-              Wrap(spacing: 12, runSpacing: 8, children: [
-                FilledButton.icon(
-                  autofocus: true,
-                  icon: const Icon(Icons.play_arrow),
-                  label: Text(canResume ? 'Continuar' : 'Ver'),
-                  onPressed: () => playWithChecks(context, (st) => st.playMovie(widget.item)),
-                ),
-                if (canResume)
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.replay),
-                    label: const Text('Desde el principio'),
-                    onPressed: () async {
-                      await s.setWatched(e, false);
-                      if (context.mounted) await playWithChecks(context, (st) => st.playMovie(widget.item));
-                    },
+        child: Wrap(
+          spacing: 24,
+          runSpacing: 16,
+          children: [
+            SizedBox(
+              width: 200,
+              child: AspectRatio(aspectRatio: 2 / 3, child: NetImage(widget.item.icon)),
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.item.name, style: Theme.of(context).textTheme.headlineSmall),
+                  const SizedBox(height: 4),
+                  Text([if (widget.item.year.isNotEmpty) widget.item.year, if (dur > 0) formatTime(dur)].join(' · ')),
+                  if (canResume) ...[
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(value: fraction(pos, dur)),
+                    Text('Vas en ${progressLabel(pos, dur)}'),
+                  ],
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton.icon(
+                        autofocus: true,
+                        icon: const Icon(Icons.play_arrow),
+                        label: Text(canResume ? 'Continuar' : 'Ver'),
+                        onPressed: () => playWithChecks(context, (st) => st.playMovie(widget.item)),
+                      ),
+                      if (canResume)
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.replay),
+                          label: const Text('Desde el principio'),
+                          onPressed: () async {
+                            await s.setWatched(e, false);
+                            if (context.mounted) await playWithChecks(context, (st) => st.playMovie(widget.item));
+                          },
+                        ),
+                      OutlinedButton.icon(
+                        icon: Icon(fav ? Icons.star : Icons.star_border),
+                        label: Text(fav ? 'En favoritos' : 'Favorito'),
+                        onPressed: () => s.toggleFavorite(widget.item),
+                      ),
+                      if (e != null)
+                        OutlinedButton.icon(
+                          icon: Icon(e.watched ? Icons.check_circle : Icons.check_circle_outline),
+                          label: Text(e.watched ? 'Vista' : 'Marcar como vista'),
+                          onPressed: () => s.setWatched(e, !e.watched),
+                        ),
+                    ],
                   ),
-                OutlinedButton.icon(
-                  icon: Icon(fav ? Icons.star : Icons.star_border),
-                  label: Text(fav ? 'En favoritos' : 'Favorito'),
-                  onPressed: () => s.toggleFavorite(widget.item),
-                ),
-                if (e != null)
-                  OutlinedButton.icon(
-                    icon: Icon(e.watched ? Icons.check_circle : Icons.check_circle_outline),
-                    label: Text(e.watched ? 'Vista' : 'Marcar como vista'),
-                    onPressed: () => s.setWatched(e, !e.watched),
-                  ),
-              ]),
-              if ((_info?.plot ?? '').isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(_info!.plot),
-              ],
-            ]),
-          ),
-        ]),
+                  if ((_info?.plot ?? '').isNotEmpty) ...[const SizedBox(height: 16), Text(_info!.plot)],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

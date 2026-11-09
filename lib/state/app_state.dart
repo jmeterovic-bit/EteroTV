@@ -223,6 +223,9 @@ class AppState extends ChangeNotifier {
 
   // ---- Library ----
 
+  @visibleForTesting
+  void debugAdd(LibraryEntry e) => _library[e.key] = e;
+
   LibraryEntry? entry(Kind kind, String id) => _library[LibraryEntry.keyOf(kind, id)];
 
   bool isFavorite(Kind kind, String id) => entry(kind, id)?.favorite ?? false;
@@ -306,6 +309,21 @@ class AppState extends ChangeNotifier {
     await _save(e);
     notifyListeners();
   }
+
+  /// "Quitar de Continuar viendo": forget the position, keep the rest.
+  Future<void> removeFromContinue(LibraryEntry e) async {
+    e
+      ..positionSecs = 0
+      ..updatedAt = _now
+      ..device = deviceId;
+    await _save(e);
+    notifyListeners();
+  }
+
+  /// Movies and series marked as favourite, most recently added first ("Mi lista").
+  List<LibraryEntry> get myList =>
+      _library.values.where((e) => e.favorite && (e.kind == Kind.movie || e.kind == Kind.series)).toList()
+        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
   Future<void> _save(LibraryEntry e) async {
     _library[e.key] = e;

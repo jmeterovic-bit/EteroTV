@@ -21,14 +21,18 @@ class LostScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Revisar favoritos perdidos')),
       body: lost.isEmpty
           ? const Center(child: Text('Todo en orden.'))
-          : ListView(children: [
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Tu proveedor cambió estos elementos en la lista nueva. Elige el reemplazo correcto '
-                    'o descártalos. El progreso pasa al que elijas.'),
-              ),
-              for (final e in lost) _LostTile(key: ValueKey(e.key), entry: e),
-            ]),
+          : ListView(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'Tu proveedor cambió estos elementos en la lista nueva. Elige el reemplazo correcto '
+                    'o descártalos. El progreso pasa al que elijas.',
+                  ),
+                ),
+                for (final e in lost) _LostTile(key: ValueKey(e.key), entry: e),
+              ],
+            ),
     );
   }
 }
@@ -70,34 +74,39 @@ class _LostTileState extends State<_LostTile> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name, style: Theme.of(context).textTheme.titleMedium),
-          Text(detail, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 8),
-          if (c == null)
-            const LinearProgressIndicator()
-          else if (c.isEmpty)
-            const Text('No encontré nada parecido.')
-          else
-            for (final cand in c)
-              ListTile(
-                dense: true,
-                leading: SizedBox(width: 36, height: 50, child: NetImage(cand.item.icon)),
-                title: Text(cand.item.name),
-                subtitle: Text([
-                  '${(cand.score * 100).round()} % parecido',
-                  if (cand.item.year.isNotEmpty) cand.item.year,
-                  if (cand.durationSecs > 0) formatTime(cand.durationSecs),
-                  ...cand.reasons,
-                ].join(' · ')),
-                trailing: cand.safe ? const Icon(Icons.verified, color: Colors.greenAccent) : null,
-                onTap: () => s.replaceLost(e, cand.item),
-              ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(onPressed: () => s.dismissLost(e), child: const Text('Descartar')),
-          ),
-        ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(name, style: Theme.of(context).textTheme.titleMedium),
+            Text(detail, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+            if (c == null)
+              const LinearProgressIndicator()
+            else if (c.isEmpty)
+              const Text('No encontré nada parecido.')
+            else
+              for (final cand in c)
+                ListTile(
+                  dense: true,
+                  leading: SizedBox(width: 36, height: 50, child: NetImage(cand.item.icon)),
+                  title: Text(cand.item.name),
+                  subtitle: Text(
+                    [
+                      '${(cand.score * 100).round()} % parecido',
+                      if (cand.item.year.isNotEmpty) cand.item.year,
+                      if (cand.durationSecs > 0) formatTime(cand.durationSecs),
+                      ...cand.reasons,
+                    ].join(' · '),
+                  ),
+                  trailing: cand.safe ? const Icon(Icons.verified, color: Colors.greenAccent) : null,
+                  onTap: () => s.replaceLost(e, cand.item),
+                ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(onPressed: () => s.dismissLost(e), child: const Text('Descartar')),
+            ),
+          ],
+        ),
       ),
     );
   }

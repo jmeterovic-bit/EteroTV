@@ -112,10 +112,7 @@ void main() {
 
     test('other kinds and weak matches are left out', () {
       final lost = LostItem(kind: Kind.movie, name: 'Matrix');
-      final pool = [
-        CatalogItem(kind: Kind.series, id: '1', name: 'Matrix', categoryId: ''),
-        movie('2', 'Toy Story'),
-      ];
+      final pool = [CatalogItem(kind: Kind.series, id: '1', name: 'Matrix', categoryId: ''), movie('2', 'Toy Story')];
       expect(bestByName(lost, pool), isEmpty);
     });
   });

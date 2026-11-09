@@ -78,12 +78,13 @@ class AppDatabase {
     return [for (final r in rows) Category(kind, r['id'] as String, r['name'] as String)];
   }
 
-  Future<List<CatalogItem>> itemsIn(Kind kind, String categoryId) async {
+  Future<List<CatalogItem>> itemsIn(Kind kind, String categoryId, {int? limit}) async {
     final rows = await db.query(
       'catalog',
       where: 'kind = ? AND category_id = ?',
       whereArgs: [kind.name, categoryId],
       orderBy: kind == Kind.live ? 'num, name_lc' : 'name_lc',
+      limit: limit,
     );
     return rows.map(CatalogItem.fromRow).toList();
   }

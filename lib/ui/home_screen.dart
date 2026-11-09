@@ -1,165 +1,225 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../data/library.dart';
 import '../iptv/xtream.dart';
-import '../logic/progress.dart';
 import '../state/app_state.dart';
-import 'browse_screen.dart';
+import 'browse_screen.dart' show catalogItemOf;
+import 'cards.dart';
 import 'lost_screen.dart';
-import 'movie_screen.dart';
-import 'play.dart';
+import 'rows.dart';
 import 'search_screen.dart';
-import 'series_screen.dart';
 import 'settings_screen.dart';
+import 'theme.dart';
 import 'widgets.dart';
 
-class HomeScreen extends StatelessWidget {
+/// Main frame: bottom bar on phones, side rail on wide screens and TV.
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _tab = 0;
+
+  static const _dest = [
+    (Icons.home_outlined, Icons.home, 'Inicio'),
+    (Icons.video_library_outlined, Icons.video_library, 'Series'),
+    (Icons.movie_outlined, Icons.movie, 'Películas'),
+    (Icons.live_tv_outlined, Icons.live_tv, 'Canales'),
+    (Icons.search, Icons.search, 'Buscar'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width >= 800;
+    final pages = [
+      const HomeTab(),
+      const KindTab(kind: Kind.series),
+      const KindTab(kind: Kind.movie),
+      const KindTab(kind: Kind.live),
+      const SearchScreen(autofocus: false),
+    ];
+    final body = IndexedStack(index: _tab, children: pages);
+    if (wide) {
+      return Scaffold(
+        body: Row(
+          children: [
+            FocusTraversalGroup(
+              child: NavigationRail(
+                backgroundColor: const Color(0xFF101010),
+                selectedIndex: _tab,
+                onDestinationSelected: (i) => setState(() => _tab = i),
+                labelType: NavigationRailLabelType.all,
+                indicatorColor: accent.withValues(alpha: 0.25),
+                leading: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Image.asset('assets/icon.png', width: 40, height: 40),
+                ),
+                trailing: Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: IconButton(
+                    tooltip: 'Ajustes',
+                    icon: const Icon(Icons.settings_outlined),
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+                  ),
+                ),
+                destinations: [
+                  for (final d in _dest)
+                    NavigationRailDestination(
+                      icon: Icon(d.$1),
+                      selectedIcon: Icon(d.$2, color: accent),
+                      label: Text(d.$3),
+                    ),
+                ],
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(child: FocusTraversalGroup(child: body)),
+          ],
+        ),
+      );
+    }
+    return Scaffold(
+      extendBody: true,
+      body: body,
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(32),
+            child: NavigationBar(
+              height: 64,
+              backgroundColor: const Color(0xEE1F1F1F),
+              indicatorColor: accent.withValues(alpha: 0.25),
+              labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+              selectedIndex: _tab,
+              onDestinationSelected: (i) => setState(() => _tab = i),
+              destinations: [
+                for (final d in _dest)
+                  NavigationDestination(
+                    icon: Icon(d.$1),
+                    selectedIcon: Icon(d.$2, color: accent),
+                    label: d.$3,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Inicio: last thing watched, Continuar viendo, Mi lista, Canales favoritos
+/// and the first categories of series and movies.
+class HomeTab extends StatefulWidget {
+  const HomeTab({super.key});
+
+  @override
+  State<HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<HomeTab> {
+  List<Category> _rows = const [];
+  DateTime? _loadedFor;
+
+  static const rowsPerKind = 5;
+
+  Future<void> _loadRows(AppState s) async {
+    _loadedFor = s.lastRefresh;
+    final series = await s.db.categories(Kind.series);
+    final movies = await s.db.categories(Kind.movie);
+    if (!mounted) return;
+    setState(() => _rows = [...series.take(rowsPerKind), ...movies.take(rowsPerKind)]);
+  }
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<AppState>();
+    if (_loadedFor != s.lastRefresh || (_rows.isEmpty && !s.refreshing && _loadedFor == null)) {
+      _loadRows(s);
+    }
     final cont = s.continueWatching;
+    final wide = MediaQuery.sizeOf(context).width >= 800;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('EteroTV'),
+        automaticallyImplyLeading: false,
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            if (!wide) ...[Image.asset('assets/icon.png', width: 32, height: 32), const SizedBox(width: 10)],
+            const Text('Inicio', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
         actions: [
-          IconButton(
-            tooltip: 'Buscar',
-            icon: const Icon(Icons.search),
-            onPressed: () => _push(context, const SearchScreen()),
-          ),
-          IconButton(
-            tooltip: 'Ajustes',
-            icon: const Icon(Icons.settings),
-            onPressed: () => _push(context, const SettingsScreen()),
-          ),
+          if (!wide)
+            IconButton(
+              tooltip: 'Ajustes',
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            ),
         ],
       ),
-      body: ListView(children: [
-        if (s.refreshing)
-          ListTile(
-            leading: const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
-            title: Text(s.refreshStep),
-            subtitle: const Text('La primera vez puede tardar un par de minutos.'),
-          ),
-        if (s.error != null)
-          ListTile(
-            leading: const Icon(Icons.error_outline, color: Colors.redAccent),
-            title: Text(s.error!),
-            trailing: TextButton(onPressed: s.refreshCatalog, child: const Text('Reintentar')),
-          ),
-        if (s.lost.isNotEmpty)
-          Card(
-            margin: const EdgeInsets.all(16),
-            child: ListTile(
-              leading: const Icon(Icons.find_replace),
-              title: Text('${s.lost.length} favoritos o progresos no aparecen en la lista nueva'),
-              subtitle: const Text('Te sugiero los más parecidos para reemplazarlos.'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _push(context, const LostScreen()),
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: 96),
+        children: [
+          if (s.refreshing)
+            ListTile(
+              leading: const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+              title: Text(s.refreshStep),
+              subtitle: const Text('La primera vez puede tardar un par de minutos.'),
             ),
-          ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: FocusTraversalGroup(
-            child: Wrap(spacing: 12, runSpacing: 12, children: [
-              _BigButton(Icons.live_tv, 'Canales', autofocus: cont.isEmpty,
-                  onTap: () => _push(context, const BrowseScreen(kind: Kind.live))),
-              _BigButton(Icons.movie, 'Películas', onTap: () => _push(context, const BrowseScreen(kind: Kind.movie))),
-              _BigButton(Icons.video_library, 'Series', onTap: () => _push(context, const BrowseScreen(kind: Kind.series))),
-            ]),
-          ),
-        ),
-        Shelf(title: 'Seguir viendo', height: 210, children: [
-          for (final (i, e) in cont.indexed)
-            FocusCard(
-              autofocus: i == 0,
-              width: 240,
-              aspect: 16 / 9,
-              title: e.title,
-              subtitle: progressLabel(e.positionSecs, e.durationSecs),
-              image: e.icon,
-              progress: fraction(e.positionSecs, e.durationSecs),
-              onTap: () => playWithChecks(context, (st) => st.resume(e)),
+          if (s.error != null)
+            ListTile(
+              leading: const Icon(Icons.error_outline, color: Colors.redAccent),
+              title: Text(s.error!),
+              trailing: TextButton(onPressed: s.refreshCatalog, child: const Text('Reintentar')),
             ),
-        ]),
-        Shelf(title: 'Canales recientes', height: 190, children: [
-          for (final e in s.recentChannels.take(20)) _channelCard(context, e),
-        ]),
-        Shelf(title: 'Canales favoritos', height: 190, children: [
-          for (final e in s.favorites(Kind.live)) _channelCard(context, e),
-        ]),
-        Shelf(title: 'Películas favoritas', children: [
-          for (final e in s.favorites(Kind.movie))
-            FocusCard(
-              title: e.name,
-              image: e.icon,
-              progress: e.positionSecs > 0 && !e.watched ? fraction(e.positionSecs, e.durationSecs) : null,
-              badge: e.watched ? Icons.check_circle : null,
-              onTap: () => _push(context, MovieScreen(item: _asItem(e))),
+          if (s.lost.isNotEmpty)
+            Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: ListTile(
+                leading: const Icon(Icons.find_replace),
+                title: Text('${s.lost.length} favoritos o progresos no aparecen en la lista nueva'),
+                subtitle: const Text('Te sugiero los más parecidos para reemplazarlos.'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LostScreen())),
+              ),
             ),
-        ]),
-        Shelf(title: 'Series favoritas', children: [
-          for (final e in s.favorites(Kind.series))
-            FocusCard(
-              title: e.name,
-              image: e.icon,
-              icon: Icons.video_library,
-              onTap: () => _push(context, SeriesScreen(item: _asItem(e))),
-            ),
-        ]),
-        if (s.favorites(Kind.live).isEmpty && s.favorites(Kind.movie).isEmpty && s.favorites(Kind.series).isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Text('Marca canales, películas y series con la estrella para tenerlos aquí.'),
+          if (cont.isNotEmpty) HeroBanner(entry: cont.first),
+          Shelf(
+            title: 'Continuar viendo',
+            height: 200,
+            children: [for (final e in cont) ContinueCard(entry: e)],
           ),
-        const SizedBox(height: 32),
-      ]),
+          Shelf(
+            title: 'Mi lista',
+            height: posterRowHeight,
+            children: [for (final e in s.myList) PosterCard(item: catalogItemOf(e))],
+          ),
+          Shelf(
+            title: 'Canales favoritos',
+            height: channelRowHeight,
+            children: [for (final e in s.favorites(Kind.live)) ChannelCard(item: catalogItemOf(e))],
+          ),
+          if (cont.isEmpty && s.myList.isEmpty && s.favorites(Kind.live).isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Marca series, películas y canales con la estrella para tenerlos aquí. '
+                'Lo que dejes a medias aparece en «Continuar viendo».',
+              ),
+            ),
+          for (final c in _rows)
+            CategoryRow(
+              key: ValueKey('${c.kind.name}:${c.id}'),
+              category: c,
+              titlePrefix: c.kind == Kind.series ? 'Series · ' : 'Películas · ',
+            ),
+        ],
+      ),
     );
   }
-
-  Widget _channelCard(BuildContext context, LibraryEntry e) => FocusCard(
-        width: 150,
-        aspect: 16 / 10,
-        title: e.name,
-        image: e.icon,
-        icon: Icons.live_tv,
-        onTap: () => playWithChecks(context, (st) => st.playLive(_asItem(e))),
-      );
-
-  static CatalogItem _asItem(LibraryEntry e) => CatalogItem(
-        kind: e.kind,
-        id: e.id,
-        name: e.name,
-        categoryId: '',
-        icon: e.icon,
-        extension: e.extension,
-        epgId: e.epgId,
-        tmdbId: e.tmdbId,
-        year: e.year,
-      );
-}
-
-void _push(BuildContext context, Widget w) => Navigator.push(context, MaterialPageRoute(builder: (_) => w));
-
-class _BigButton extends StatelessWidget {
-  const _BigButton(this.icon, this.label, {required this.onTap, this.autofocus = false});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool autofocus;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 170,
-        height: 64,
-        child: FilledButton.tonalIcon(
-          autofocus: autofocus,
-          onPressed: onTap,
-          icon: Icon(icon),
-          label: Text(label, style: const TextStyle(fontSize: 16)),
-        ),
-      );
 }

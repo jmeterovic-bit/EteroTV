@@ -11,7 +11,8 @@ import 'series_screen.dart';
 import 'widgets.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  const SearchScreen({super.key, this.autofocus = true});
+  final bool autofocus;
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -40,7 +41,7 @@ class _SearchScreenState extends State<SearchScreen> {
     return Scaffold(
       appBar: AppBar(
         title: TextField(
-          autofocus: true,
+          autofocus: widget.autofocus,
           onChanged: _changed,
           decoration: const InputDecoration(hintText: 'Buscar canales, películas y series', border: InputBorder.none),
         ),
