@@ -9,12 +9,13 @@ rem   Fire TV:   Configuracion > Mi Fire TV > Opciones para desarrolladores > De
 rem              (si no aparece "Opciones para desarrolladores": Mi Fire TV > Acerca de, pulsar 7 veces el nombre del dispositivo)
 rem   Google TV: Ajustes > Sistema > Acerca de > pulsar 7 veces "Compilacion del SO";
 rem              luego Ajustes > Sistema > Opciones para desarrolladores > Depuracion USB: activar
-rem Pon eterotv.apk en la misma carpeta que este archivo.
+rem Pon el APK (eterotv-X.Y.Z.apk) en la misma carpeta que este archivo. Si hay varios, usa el mas nuevo.
 
 set "HERE=%~dp0"
-set "APK=%HERE%eterotv.apk"
-if not exist "%APK%" (
-  echo No encuentro eterotv.apk junto a este archivo.
+set "APK="
+for /f "delims=" %%F in ('dir /b /o-d "%HERE%eterotv*.apk" 2^>nul') do if not defined APK set "APK=%HERE%%%F"
+if not defined APK (
+  echo No encuentro el APK de EteroTV junto a este archivo.
   echo Descargalo del Release de GitHub y ponlo en: %HERE%
   pause
   exit /b 1

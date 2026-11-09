@@ -1,6 +1,7 @@
 package com.jmeterovic.eterotv
 
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import io.flutter.embedding.android.FlutterActivity
@@ -48,36 +49,51 @@ class MainActivity : FlutterActivity() {
         true // unknown: try to open it anyway
     }
 
+    /** How the last launch was done, to explain it when VLC sends nothing back. */
+    private var via = ""
+
     private fun play(url: String, title: String, positionMs: Long, result: MethodChannel.Result) {
         // A previous launch that never came back: close it with no data.
         pending?.success(null)
         pending = null
-        val intent = Intent("org.videolan.vlc.player.result").apply {
-            setPackage("org.videolan.vlc")
-            setDataAndTypeAndNormalize(Uri.parse(url), "video/*")
-            putExtra("title", title)
-            if (positionMs > 0) putExtra("position", positionMs)
-            // Our position wins over VLC's own "resume" prompt.
-            putExtra("from_start", positionMs <= 0)
+        val uri = Uri.parse(url)
+        fun MutableList<Pair<String, Intent>>.attempt(name: String, build: Intent.() -> Unit) =
+            add(name to Intent().apply(build).apply {
+                setDataAndTypeAndNormalize(uri, "video/*")
+                putExtra("title", title)
+                if (positionMs > 0) putExtra("position", positionMs)
+                // Our position wins over VLC's own "resume" memory.
+                putExtra("from_start", positionMs <= 0)
+            })
+        // 1. Straight to VLC's player: only that screen hands the position
+        //    back. Going through VLC's start screen returns at once, empty.
+        // 2. The documented "result" action. 3. Plain "open with VLC".
+        val tries = mutableListOf<Pair<String, Intent>>()
+        tries.attempt("player") {
+            action = Intent.ACTION_VIEW
+            component = ComponentName("org.videolan.vlc", "org.videolan.vlc.gui.video.VideoPlayerActivity")
         }
-        try {
-            pending = result
-            startActivityForResult(intent, vlcRequest)
-        } catch (e: ActivityNotFoundException) {
-            // Plain "open with VLC" as a second try (no position comes back).
+        tries.attempt("result") {
+            action = "org.videolan.vlc.player.result"
+            setPackage("org.videolan.vlc")
+        }
+        tries.attempt("view") {
+            action = Intent.ACTION_VIEW
+            setPackage("org.videolan.vlc")
+        }
+        for ((name, intent) in tries) {
             try {
-                startActivityForResult(
-                    Intent(Intent.ACTION_VIEW).apply {
-                        setPackage("org.videolan.vlc")
-                        setDataAndTypeAndNormalize(Uri.parse(url), "video/*")
-                    },
-                    vlcRequest,
-                )
-            } catch (e2: ActivityNotFoundException) {
+                pending = result
+                via = name
+                startActivityForResult(intent, vlcRequest)
+                return
+            } catch (e: ActivityNotFoundException) {
                 pending = null
-                result.error("no_vlc", "VLC is not installed", null)
+            } catch (e: SecurityException) {
+                pending = null
             }
         }
+        result.error("no_vlc", "VLC is not installed", null)
     }
 
     @Suppress("DEPRECATION")
@@ -87,17 +103,16 @@ class MainActivity : FlutterActivity() {
         if (requestCode != vlcRequest) return
         val result = pending ?: return
         pending = null
-        if (data == null) {
-            result.success(null)
-            return
-        }
         // Read as any number: some VLC versions send Int, others Long.
-        val extras = data.extras
+        val extras = data?.extras
         fun num(key: String): Long = (extras?.get(key) as? Number)?.toLong() ?: -1L
         result.success(
             mapOf(
                 "positionMs" to num("extra_position"),
                 "durationMs" to num("extra_duration"),
+                // Only for the "VLC did not say" message: never values (the URL has the password).
+                "info" to "$via, código $resultCode, " +
+                    (if (data == null) "sin datos" else "datos: " + (extras?.keySet()?.sorted()?.joinToString() ?: "ninguno")),
             )
         )
     }

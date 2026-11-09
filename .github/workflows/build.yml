@@ -53,12 +53,13 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           flutter build apk --release --build-number=${{ github.run_number }}
-          cp build/app/outputs/flutter-apk/app-release.apk eterotv.apk
+          ver=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
+          cp build/app/outputs/flutter-apk/app-release.apk "eterotv-$ver.apk"
       - uses: actions/upload-artifact@v6
         with:
           name: eterotv-android
           path: |
-            eterotv.apk
+            eterotv-*.apk
             tool/instalar-eterotv-firetv.bat
 
   windows:
@@ -76,11 +77,13 @@ jobs:
         run: flutter build windows --release --build-number=${{ github.run_number }}
       - name: Zip
         shell: pwsh
-        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath eterotv-windows.zip
+        run: |
+          $ver = ((Select-String -Path pubspec.yaml -Pattern '^version:').Line -replace 'version:\s*', '') -replace '\+.*', ''
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "eterotv-windows-$ver.zip"
       - uses: actions/upload-artifact@v6
         with:
           name: eterotv-windows
-          path: eterotv-windows.zip
+          path: eterotv-windows-*.zip
 
   release:
     # Every push to main, or a manual run on main, publishes a release.
@@ -111,6 +114,6 @@ jobs:
           name: EteroTV build ${{ github.run_number }}
           body_path: notes.md
           files: |
-            eterotv.apk
-            eterotv-windows.zip
+            eterotv-*.apk
+            eterotv-windows-*.zip
             tool/instalar-eterotv-firetv.bat

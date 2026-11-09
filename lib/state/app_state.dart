@@ -470,7 +470,10 @@ class AppState extends ChangeNotifier {
 
     final r = await vlc.play(url, title: e.title, startSecs: start);
     // VLC did not report: keep what we had and say so.
-    if (r == null || r.positionSecs == null) return 'VLC no avisó hasta dónde viste; el avance no se guardó.';
+    if (r == null || r.positionSecs == null) {
+      final info = r == null || r.info.isEmpty ? '' : ' (${r.info})';
+      return 'VLC no avisó hasta dónde viste; el avance no se guardó.$info';
+    }
     applyResult(e, r);
     e
       ..updatedAt = _now

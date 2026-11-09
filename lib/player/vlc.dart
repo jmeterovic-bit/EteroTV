@@ -8,9 +8,13 @@ import 'package:http/http.dart' as http;
 
 /// Where the user stopped. Null fields mean VLC did not tell us.
 class PlayResult {
-  PlayResult({this.positionSecs, this.durationSecs});
+  PlayResult({this.positionSecs, this.durationSecs, this.info = ''});
   final int? positionSecs;
   final int? durationSecs;
+
+  /// Android: how VLC answered (launch type, result code, extra names), to
+  /// explain a missing position. Never contains the URL.
+  final String info;
 }
 
 class VlcMissing implements Exception {
@@ -52,7 +56,11 @@ class AndroidVlc extends VlcLauncher {
       if (r == null) return null;
       final pos = (r['positionMs'] as num?)?.toInt() ?? -1;
       final dur = (r['durationMs'] as num?)?.toInt() ?? -1;
-      return PlayResult(positionSecs: pos >= 0 ? pos ~/ 1000 : null, durationSecs: dur > 0 ? dur ~/ 1000 : null);
+      return PlayResult(
+        positionSecs: pos >= 0 ? pos ~/ 1000 : null,
+        durationSecs: dur > 0 ? dur ~/ 1000 : null,
+        info: (r['info'] as String?) ?? '',
+      );
     } on PlatformException catch (e) {
       if (e.code == 'no_vlc') throw VlcMissing();
       rethrow;

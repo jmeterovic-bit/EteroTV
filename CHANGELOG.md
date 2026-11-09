@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.3.1
+- Android: VLC se abre directo en su reproductor, la única pantalla de VLC que devuelve hasta dónde viste (antes pasaba por su pantalla de inicio, que no devuelve nada). Si VLC igual no avisa, el mensaje dice cómo respondió.
+- Los archivos del Release llevan la versión en el nombre (`eterotv-0.3.1.apk`), para no instalar uno viejo por error.
+
 ## 0.3.0
 - Episodios: cada uno tiene su botón para marcarlo como visto o no visto sin abrirlo, y hay «Marcar temporada como vista». Muestran «Visto», «Empezado» o la barra de avance.
 - «Ver» propone el primer episodio no visto (los marcados a mano cuentan).
