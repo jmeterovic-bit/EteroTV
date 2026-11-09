@@ -35,11 +35,17 @@ class MainActivity : FlutterActivity() {
             }
     }
 
+    /** Asks Android who can open the VLC "result" intent, instead of
+     *  looking the package up by name (that failed on Jose's phone). */
     private fun vlcInstalled(): Boolean = try {
-        packageManager.getPackageInfo("org.videolan.vlc", 0)
-        true
+        val probe = Intent("org.videolan.vlc.player.result").apply {
+            setPackage("org.videolan.vlc")
+            setDataAndType(Uri.parse("http://example.com/v.ts"), "video/*")
+        }
+        packageManager.queryIntentActivities(probe, 0).isNotEmpty() ||
+            packageManager.getLaunchIntentForPackage("org.videolan.vlc") != null
     } catch (_: Exception) {
-        false
+        true // unknown: try to open it anyway
     }
 
     private fun play(url: String, title: String, positionMs: Long, result: MethodChannel.Result) {
@@ -58,8 +64,19 @@ class MainActivity : FlutterActivity() {
             pending = result
             startActivityForResult(intent, vlcRequest)
         } catch (e: ActivityNotFoundException) {
-            pending = null
-            result.error("no_vlc", "VLC is not installed", null)
+            // Plain "open with VLC" as a second try (no position comes back).
+            try {
+                startActivityForResult(
+                    Intent(Intent.ACTION_VIEW).apply {
+                        setPackage("org.videolan.vlc")
+                        setDataAndTypeAndNormalize(Uri.parse(url), "video/*")
+                    },
+                    vlcRequest,
+                )
+            } catch (e2: ActivityNotFoundException) {
+                pending = null
+                result.error("no_vlc", "VLC is not installed", null)
+            }
         }
     }
 

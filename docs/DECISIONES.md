@@ -19,6 +19,7 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | Fire TV (sin USB) | Dos formas: script `tool/instalar-eterotv-firetv.bat` desde el PC por Wi‑Fi (ADB), o Downloader con un enlace público de Drive | Jose quiere probar las dos, primero el script. El Release de GitHub es privado: Downloader no puede bajarlo. |
 | Ícono | «E» ámbar con un play en el medio, sobre negro (#141414); ícono adaptativo en Android y banner 320×180 para TV | Elegido por Jose el 2026-11-09 entre 5 opciones (originales en la carpeta del proyecto `eterotv/`). |
 | https vs http | Si el servidor responde http a una URL https (WRONG_VERSION_NUMBER), se reintenta con http y se guarda así | El servidor de Jose usa http en ese puerto, como casi todos los IPTV. |
+| Detectar VLC en Android | No se bloquea la reproducción por la revisión previa: se intenta abrir VLC y solo si Android no lo encuentra se avisa | En el celular de Jose la búsqueda por nombre de paquete decía que no estaba aunque sí estaba (2026-11-09). |
 | Firma Android | Workflow «Create Android signing key» (una vez) y secretos `ANDROID_KEYSTORE_*` | Sin clave fija, cada APK se firma con una clave temporal y no se instala encima del anterior. |
 
 ## Pendiente

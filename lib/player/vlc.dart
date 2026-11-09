@@ -35,8 +35,12 @@ abstract class VlcLauncher {
 class AndroidVlc extends VlcLauncher {
   static const _ch = MethodChannel('eterotv/vlc');
 
+  /// Only a hint: if Android says no, VLC is still tried when playing and
+  /// the "VLC missing" message only shows if that launch fails.
   @override
-  Future<bool> available() async => await _ch.invokeMethod<bool>('isInstalled') ?? false;
+  Future<bool> available() async => true;
+
+  Future<bool> looksInstalled() async => await _ch.invokeMethod<bool>('isInstalled') ?? true;
 
   @override
   Future<PlayResult?> play(String url, {required String title, int startSecs = 0}) async {
