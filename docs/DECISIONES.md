@@ -44,3 +44,4 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | 2026-11-09 | v0.1.1: ícono propio y banner de TV; reintento automático con http y mensajes de conexión en español. |
 | 2026-11-09 | v0.1.1 (cont.): carpetas A medias y Favoritos, buscador por categoría, detección de VLC más tolerante. |
 | 2026-11-09 | v0.2.0: diseño nuevo estilo streaming (Inicio con destacado y filas, pestañas por tipo, menú ⋮ en Continuar viendo). |
+| 2026-11-09 | CI: acciones de GitHub a versiones con Node 24 (checkout v5, setup-java v5, upload/download-artifact v6) por el aviso de Node 20 obsoleto. |
