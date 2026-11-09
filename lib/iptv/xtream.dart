@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -10,6 +12,12 @@ class Credentials {
   final String server;
   final String username;
   final String password;
+
+  /// Same account over plain http (most IPTV ports are not encrypted).
+  Credentials withHttp() => Credentials(
+      server: server.replaceFirst(RegExp('^https://', caseSensitive: false), 'http://'),
+      username: username,
+      password: password);
 
   Map<String, String> toJson() =>
       {'server': server, 'username': username, 'password': password};
@@ -160,8 +168,11 @@ class MovieInfo {
 }
 
 class XtreamException implements Exception {
-  XtreamException(this.message);
+  XtreamException(this.message, {this.tlsMismatch = false});
   final String message;
+
+  /// The server answered plain HTTP to an https:// request.
+  final bool tlsMismatch;
   @override
   String toString() => message;
 }
@@ -185,6 +196,15 @@ class XtreamClient {
     final http.Response res;
     try {
       res = await _http.get(_api(params)).timeout(const Duration(seconds: 60));
+    } on HandshakeException catch (e) {
+      throw XtreamException(
+        'El servidor no usa https en ese puerto. Prueba con http:// al inicio de la URL.',
+        tlsMismatch: e.toString().contains('WRONG_VERSION_NUMBER'),
+      );
+    } on TimeoutException {
+      throw XtreamException('El servidor no respondió. Revisa la URL y el puerto.');
+    } on SocketException {
+      throw XtreamException('No se encontró el servidor. Revisa la URL, el puerto y tu conexión a internet.');
     } catch (e) {
       throw XtreamException('No se pudo conectar con el servidor ($e)');
     }

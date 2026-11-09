@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.1.1
+- Ícono propio (E con play al medio, ámbar sobre negro) y banner para Google TV / Fire TV.
+- Si se escribe https:// para un servidor que solo usa http, la app reintenta sola con http y los errores de conexión se explican en español.
+
 ## 0.1.0
 - Primera versión (etapa 1): conexión al servidor IPTV con URL, usuario y contraseña.
 - Canales, películas y series del proveedor, guardados en el dispositivo y actualizados cada 24 h.

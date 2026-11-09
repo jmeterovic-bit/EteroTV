@@ -68,7 +68,15 @@ class AppState extends ChangeNotifier {
 
   /// Checks the credentials with the server, then saves them.
   Future<AccountInfo> signIn(Credentials c) async {
-    final info = await XtreamClient(c).account();
+    AccountInfo info;
+    try {
+      info = await XtreamClient(c).account();
+    } on XtreamException catch (e) {
+      // "https://" typed for a port that only speaks http: retry as http.
+      if (!e.tlsMismatch || !c.server.startsWith('https://')) rethrow;
+      c = c.withHttp();
+      info = await XtreamClient(c).account();
+    }
     await _storage.write(key: _credsKey, value: jsonEncode(c.toJson()));
     creds = c;
     notifyListeners();

@@ -17,12 +17,14 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | Favoritos perdidos | Tras cada actualización se buscan los que ya no existen y se sugieren reemplazos por nombre limpio, año, duración (±2 min) y TMDB o canal EPG. El usuario confirma. | Los proveedores cambian IDs al reorganizar. Pedido por Jose el 2026-11-08. |
 | Credenciales | Cifradas en el dispositivo (`flutter_secure_storage`). Sin frase maestra. | Decidido por Jose el 2026-11-08. En la etapa 2 se comparten por la carpeta oculta de Drive. |
 | Fire TV (sin USB) | Dos formas: script `tool/instalar-eterotv-firetv.bat` desde el PC por Wi‑Fi (ADB), o Downloader con un enlace público de Drive | Jose quiere probar las dos, primero el script. El Release de GitHub es privado: Downloader no puede bajarlo. |
+| Ícono | «E» ámbar con un play en el medio, sobre negro (#141414); ícono adaptativo en Android y banner 320×180 para TV | Elegido por Jose el 2026-11-09 entre 5 opciones (originales en la carpeta del proyecto `eterotv/`). |
+| https vs http | Si el servidor responde http a una URL https (WRONG_VERSION_NUMBER), se reintenta con http y se guarda así | El servidor de Jose usa http en ese puerto, como casi todos los IPTV. |
 | Firma Android | Workflow «Create Android signing key» (una vez) y secretos `ANDROID_KEYSTORE_*` | Sin clave fija, cada APK se firma con una clave temporal y no se instala encima del anterior. |
 
 ## Pendiente
 - Etapa 2: sincronización por Google Drive (`appDataFolder`, archivo de cambios por dispositivo, como Project Cards) de favoritos, progreso y credenciales.
 - Etapa 3: interfaz pensada para el control remoto (ya se puede navegar con flechas, falta pulirla en TV) e inicio de sesión de Google con código en pantalla para TV.
-- Etapa 4: guía EPG, ícono propio.
+- Etapa 4: guía EPG.
 - Sin probar con el servidor real de Jose ni en dispositivos.
 
 ## Rechazado
@@ -35,3 +37,4 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | Fecha | Cambio |
 | --- | --- |
 | 2026-11-08 | Etapa 1 (v0.1.0): conexión Xtream, catálogo local, favoritos, progreso, VLC en Android y Windows, búsqueda, favoritos perdidos, script Fire TV, CI. |
+| 2026-11-09 | v0.1.1: ícono propio y banner de TV; reintento automático con http y mensajes de conexión en español. |

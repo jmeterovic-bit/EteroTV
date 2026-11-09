@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:eterotv/iptv/xtream.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -109,5 +110,17 @@ void main() {
     expect(m.durationSecs, 6000);
     expect(m.tmdbId, '12');
     expect(parseMovieInfo([]).durationSecs, 0);
+  });
+
+  test('https on a plain-http port is reported clearly', () async {
+    final mock = MockClient((_) async => throw const HandshakeException(
+        'Handshake error in client (OS Error: WRONG_VERSION_NUMBER(tls_record.cc:127))'));
+    final x = XtreamClient(Credentials(server: 'https://h:2052', username: 'a', password: 'b'), client: mock);
+    await expectLater(
+        x.account(),
+        throwsA(isA<XtreamException>()
+            .having((e) => e.tlsMismatch, 'tlsMismatch', isTrue)
+            .having((e) => e.message, 'message', contains('http://'))));
+    expect(x.creds.withHttp().server, 'http://h:2052');
   });
 }
