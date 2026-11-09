@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 import '../iptv/xtream.dart';
+import '../logic/rematch.dart' show stripAccents;
 import 'library.dart';
 
 /// Local SQLite: the catalog (downloaded from the provider, never synced)
@@ -10,7 +11,12 @@ class AppDatabase {
   final Database db;
 
   static Future<AppDatabase> open(String path) async {
-    final db = await openDatabase(path, version: 1, onCreate: (db, _) async {
+    final db = await openDatabase(path, version: 1, onCreate: (db, _) => createTables(db));
+    return AppDatabase(db);
+  }
+
+  static Future<void> createTables(Database db) async {
+    {
       await db.execute('''
         CREATE TABLE catalog(
           kind TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL,
@@ -30,8 +36,7 @@ class AppDatabase {
           favorite INTEGER, position INTEGER, duration INTEGER, watched INTEGER,
           last_played INTEGER, updated_at INTEGER, device TEXT)''');
       await db.execute('CREATE INDEX library_series ON library(series_id)');
-    });
-    return AppDatabase(db);
+    }
   }
 
   // ---- Catalog ----
@@ -44,15 +49,21 @@ class AppDatabase {
       await t.delete('categories', where: 'kind = ?', whereArgs: [kind.name]);
       var b = t.batch();
       for (var i = 0; i < cats.length; i++) {
-        b.insert('categories', {'kind': kind.name, 'id': cats[i].id, 'name': cats[i].name, 'pos': i},
-            conflictAlgorithm: ConflictAlgorithm.replace);
+        b.insert('categories', {
+          'kind': kind.name,
+          'id': cats[i].id,
+          'name': cats[i].name,
+          'pos': i,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
       }
       await b.commit(noResult: true);
       for (var i = 0; i < items.length; i += 2000) {
         b = t.batch();
         for (final it in items.skip(i).take(2000)) {
-          b.insert('catalog', {...it.toRow(), 'name_lc': it.name.toLowerCase()},
-              conflictAlgorithm: ConflictAlgorithm.replace);
+          b.insert('catalog', {
+            ...it.toRow(),
+            'name_lc': searchKey(it.name),
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
         }
         await b.commit(noResult: true);
       }
@@ -60,9 +71,7 @@ class AppDatabase {
   }
 
   Future<int> count(Kind kind) async =>
-      Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM catalog WHERE kind = ?', [kind.name])) ??
-      0;
+      Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM catalog WHERE kind = ?', [kind.name])) ?? 0;
 
   Future<List<Category>> categories(Kind kind) async {
     final rows = await db.query('categories', where: 'kind = ?', whereArgs: [kind.name], orderBy: 'pos');
@@ -70,36 +79,44 @@ class AppDatabase {
   }
 
   Future<List<CatalogItem>> itemsIn(Kind kind, String categoryId) async {
-    final rows = await db.query('catalog',
-        where: 'kind = ? AND category_id = ?',
-        whereArgs: [kind.name, categoryId],
-        orderBy: kind == Kind.live ? 'num, name_lc' : 'name_lc');
+    final rows = await db.query(
+      'catalog',
+      where: 'kind = ? AND category_id = ?',
+      whereArgs: [kind.name, categoryId],
+      orderBy: kind == Kind.live ? 'num, name_lc' : 'name_lc',
+    );
     return rows.map(CatalogItem.fromRow).toList();
   }
 
-  Future<List<CatalogItem>> search(String text, {int limit = 200}) async {
-    final q = text.trim().toLowerCase();
-    if (q.isEmpty) return const [];
-    final rows = await db.query('catalog',
-        where: 'name_lc LIKE ?', whereArgs: ['%$q%'], orderBy: 'kind, name_lc', limit: limit);
+  /// Lower case without accents, so "pelicula" finds "Película".
+  static String searchKey(String s) => stripAccents(s.toLowerCase());
+
+  /// Every word must appear, in any order. [kind] limits it to one kind.
+  Future<List<CatalogItem>> search(String text, {Kind? kind, int limit = 300}) async {
+    final words = searchKey(text).split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.isEmpty) return const [];
+    final where = [if (kind != null) 'kind = ?', for (final _ in words) 'name_lc LIKE ?'].join(' AND ');
+    final rows = await db.query(
+      'catalog',
+      where: where,
+      whereArgs: [if (kind != null) kind.name, for (final w in words) '%$w%'],
+      orderBy: 'kind, name_lc',
+      limit: limit,
+    );
     return rows.map(CatalogItem.fromRow).toList();
   }
 
   Future<CatalogItem?> item(Kind kind, String id) async {
-    final rows =
-        await db.query('catalog', where: 'kind = ? AND id = ?', whereArgs: [kind.name, id], limit: 1);
+    final rows = await db.query('catalog', where: 'kind = ? AND id = ?', whereArgs: [kind.name, id], limit: 1);
     return rows.isEmpty ? null : CatalogItem.fromRow(rows.first);
   }
 
   Future<List<CatalogItem>> allOf(Kind kind) async =>
-      (await db.query('catalog', where: 'kind = ?', whereArgs: [kind.name]))
-          .map(CatalogItem.fromRow)
-          .toList();
+      (await db.query('catalog', where: 'kind = ?', whereArgs: [kind.name])).map(CatalogItem.fromRow).toList();
 
   // ---- Library ----
 
-  Future<List<LibraryEntry>> library() async =>
-      (await db.query('library')).map(LibraryEntry.fromRow).toList();
+  Future<List<LibraryEntry>> library() async => (await db.query('library')).map(LibraryEntry.fromRow).toList();
 
   Future<void> saveEntry(LibraryEntry e) =>
       db.insert('library', e.toRow(), conflictAlgorithm: ConflictAlgorithm.replace);

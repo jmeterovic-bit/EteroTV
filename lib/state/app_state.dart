@@ -15,7 +15,7 @@ import '../player/vlc.dart';
 
 class AppState extends ChangeNotifier {
   AppState({required this.db, required this.prefs, required this.deviceId, VlcLauncher? vlc})
-      : vlc = vlc ?? VlcLauncher.forPlatform();
+    : vlc = vlc ?? VlcLauncher.forPlatform();
 
   final AppDatabase db;
   final SharedPreferences prefs;
@@ -167,12 +167,15 @@ class AppState extends ChangeNotifier {
       try {
         list = [
           for (final c in list)
-            scoreCandidate(lostItem, c.item,
-                candidateDuration: await x
-                    .movieInfo(c.item.id)
-                    .then((m) => m.durationSecs)
-                    .timeout(const Duration(seconds: 8), onTimeout: () => 0)
-                    .catchError((_) => 0)),
+            scoreCandidate(
+              lostItem,
+              c.item,
+              candidateDuration: await x
+                  .movieInfo(c.item.id)
+                  .then((m) => m.durationSecs)
+                  .timeout(const Duration(seconds: 8), onTimeout: () => 0)
+                  .catchError((_) => 0),
+            ),
         ]..sort((a, b) => b.score.compareTo(a.score));
       } finally {
         x.close();
@@ -229,26 +232,63 @@ class AppState extends ChangeNotifier {
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
   /// Netflix-style row: unfinished movies and episodes, newest first.
-  List<LibraryEntry> get continueWatching => _library.values
-      .where((e) =>
-          (e.kind == Kind.movie || e.kind == Kind.episode) &&
-          e.lastPlayed > 0 &&
-          !e.watched &&
-          e.positionSecs > 0)
-      .toList()
-    ..sort((a, b) => b.lastPlayed.compareTo(a.lastPlayed));
+  List<LibraryEntry> get continueWatching =>
+      _library.values
+          .where(
+            (e) =>
+                (e.kind == Kind.movie || e.kind == Kind.episode) &&
+                e.lastPlayed > 0 &&
+                !e.watched &&
+                e.positionSecs > 0,
+          )
+          .toList()
+        ..sort((a, b) => b.lastPlayed.compareTo(a.lastPlayed));
 
-  List<LibraryEntry> get recentChannels => _library.values
-      .where((e) => e.kind == Kind.live && e.lastPlayed > 0)
-      .toList()
-    ..sort((a, b) => b.lastPlayed.compareTo(a.lastPlayed));
+  /// "A medias" folder: unfinished movies, or series with an episode
+  /// played and not marked as finished, newest first.
+  List<CatalogItem> inProgress(Kind kind) {
+    if (kind == Kind.movie) {
+      return [
+        for (final e in continueWatching.where((e) => e.kind == Kind.movie))
+          CatalogItem(
+            kind: Kind.movie,
+            id: e.id,
+            name: e.name,
+            categoryId: '',
+            icon: e.icon,
+            extension: e.extension,
+            tmdbId: e.tmdbId,
+            year: e.year,
+          ),
+      ];
+    }
+    if (kind != Kind.series) return const [];
+    final eps = _library.values.where((e) => e.kind == Kind.episode && e.lastPlayed > 0).toList()
+      ..sort((a, b) => b.lastPlayed.compareTo(a.lastPlayed));
+    final seen = <String>{};
+    return [
+      for (final e in eps)
+        if (e.seriesId.isNotEmpty && seen.add(e.seriesId))
+          CatalogItem(
+            kind: Kind.series,
+            id: e.seriesId,
+            name: e.seriesName,
+            categoryId: '',
+            icon: e.icon,
+            year: e.year,
+          ),
+    ];
+  }
+
+  List<LibraryEntry> get recentChannels =>
+      _library.values.where((e) => e.kind == Kind.live && e.lastPlayed > 0).toList()
+        ..sort((a, b) => b.lastPlayed.compareTo(a.lastPlayed));
 
   List<LibraryEntry> episodesOf(String seriesId) =>
       _library.values.where((e) => e.kind == Kind.episode && e.seriesId == seriesId).toList();
 
   Future<void> toggleFavorite(CatalogItem item) async {
-    final e = entry(item.kind, item.id) ??
-        LibraryEntry.fromCatalog(item, now: _now, device: deviceId);
+    final e = entry(item.kind, item.id) ?? LibraryEntry.fromCatalog(item, now: _now, device: deviceId);
     e
       ..favorite = !e.favorite
       ..updatedAt = _now
@@ -312,7 +352,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> playEpisode(CatalogItem series, Episode ep) async {
-    final e = entry(Kind.episode, ep.id) ??
+    final e =
+        entry(Kind.episode, ep.id) ??
         LibraryEntry(
           kind: Kind.episode,
           id: ep.id,
@@ -380,12 +421,11 @@ class AppState extends ChangeNotifier {
 
 /// Downloads and parses one list in another isolate, so that a big list does
 /// not freeze the screen. Top-level so the closure only carries [c] and [kind].
-Future<(List<Category>, List<CatalogItem>)> downloadKind(Credentials c, Kind kind) =>
-    Isolate.run(() async {
-      final x = XtreamClient(c);
-      try {
-        return (await x.categories(kind), await x.items(kind));
-      } finally {
-        x.close();
-      }
-    });
+Future<(List<Category>, List<CatalogItem>)> downloadKind(Credentials c, Kind kind) => Isolate.run(() async {
+  final x = XtreamClient(c);
+  try {
+    return (await x.categories(kind), await x.items(kind));
+  } finally {
+    x.close();
+  }
+});
