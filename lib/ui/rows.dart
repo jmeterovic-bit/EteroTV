@@ -46,7 +46,7 @@ class _CategoryRowState extends State<CategoryRow> {
   }
 }
 
-/// Netflix-style page for one kind: "A medias", "Favoritos", then a row per
+/// Netflix-style page for one kind: "Seguir viendo", "Favoritos", then a row per
 /// category. The folder list (with search) is one tap away.
 class KindTab extends StatefulWidget {
   const KindTab({super.key, required this.kind});
@@ -101,9 +101,9 @@ class _KindTabState extends State<KindTab> {
               itemBuilder: (_, i) {
                 if (i == 0) {
                   return Shelf(
-                    title: 'A medias',
+                    title: 'Seguir viendo',
                     height: h,
-                    onSeeAll: () => _open(Category(kind, inProgressFolder, 'A medias')),
+                    onSeeAll: () => _open(Category(kind, inProgressFolder, 'Seguir viendo')),
                     children: [for (final it in started) card(it)],
                   );
                 }

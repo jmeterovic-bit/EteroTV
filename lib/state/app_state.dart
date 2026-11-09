@@ -247,7 +247,7 @@ class AppState extends ChangeNotifier {
           .toList()
         ..sort((a, b) => b.lastPlayed.compareTo(a.lastPlayed));
 
-  /// "A medias" folder: unfinished movies, or series with an episode
+  /// "Seguir viendo" folder: unfinished movies, or series with an episode
   /// played and not marked as finished, newest first.
   List<CatalogItem> inProgress(Kind kind) {
     if (kind == Kind.movie) {

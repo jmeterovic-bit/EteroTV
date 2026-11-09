@@ -143,7 +143,7 @@ void main() {
       await tester.tap(find.text('Series').last);
       await settle(tester);
       expect(tester.takeException(), isNull);
-      expect(find.text('A medias'), findsWidgets);
+      expect(find.text('Seguir viendo'), findsWidgets);
       if (out != null) {
         await tester.runAsync(() async {
           final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;

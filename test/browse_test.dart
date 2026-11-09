@@ -27,7 +27,7 @@ Future<void> settle(WidgetTester tester) async {
 void main() {
   sqfliteFfiInit();
 
-  testWidgets('folders: A medias, Favoritos, categories; search here or everywhere', (tester) async {
+  testWidgets('folders: Seguir viendo, Favoritos, categories; search here or everywhere', (tester) async {
     late AppState state;
     await tester.runAsync(() async {
       SharedPreferences.setMockInitialValues({});
@@ -55,7 +55,7 @@ void main() {
       ),
     );
     await settle(tester);
-    expect(find.text('A medias'), findsWidgets);
+    expect(find.text('Seguir viendo'), findsWidgets);
     expect(find.text('Favoritos'), findsWidgets);
     expect(find.text('Acción'), findsOneWidget);
 

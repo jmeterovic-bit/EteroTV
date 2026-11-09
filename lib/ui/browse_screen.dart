@@ -22,12 +22,12 @@ String kindTitle(Kind k) => switch (k) {
 /// Id of the "Favourites" folder shown first in every kind.
 const favoritesFolder = '__favoritos__';
 
-/// Id of the "A medias" folder (movies and series started but not finished).
+/// Id of the "Seguir viendo" folder (movies and series started but not finished).
 const inProgressFolder = '__a_medias__';
 
 String folderTitle(Category c) => switch (c.id) {
   favoritesFolder => 'Favoritos',
-  inProgressFolder => 'A medias',
+  inProgressFolder => 'Seguir viendo',
   _ => c.name,
 };
 
@@ -53,7 +53,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
       if (!mounted) return;
       final fav = Category(widget.kind, favoritesFolder, 'Favoritos');
       setState(() {
-        _cats = [if (widget.kind != Kind.live) Category(widget.kind, inProgressFolder, 'A medias'), fav, ...c];
+        _cats = [if (widget.kind != Kind.live) Category(widget.kind, inProgressFolder, 'Seguir viendo'), fav, ...c];
         _selected = fav;
       });
     });
@@ -289,7 +289,7 @@ class _ItemsViewState extends State<ItemsView> {
                         : (isFavorites
                               ? 'Marca con la estrella para tenerlos aquí.'
                               : isInProgress
-                              ? 'Aquí aparece lo que dejes a medias.'
+                              ? 'Aquí aparece lo que empezaste y no terminaste.'
                               : 'Carpeta vacía'),
                   ),
                 )
