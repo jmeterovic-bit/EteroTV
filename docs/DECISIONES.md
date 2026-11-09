@@ -27,6 +27,7 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | Quitar de Seguir viendo | Borra la posición y la fecha de reproducción de la película o de todos los episodios de la serie; lo visto se conserva | Pedido por Jose el 2026-11-09. |
 | Aviso al volver de VLC | Mensaje con la posición guardada, o que VLC no la devolvió | En el celular de Jose la lista de episodios no mostraba el avance aunque VLC retomaba (posible: VLC recordaba la posición por su cuenta y no la devolvía). El aviso dice cuál de los dos pasa. |
 | Carpetas con PIN | Un solo PIN de 4 números para todas las carpetas protegidas, guardado cifrado (`flutter_secure_storage`); las carpetas protegidas en `SharedPreferences`. Lo de esas carpetas no aparece en ninguna parte hasta ingresar el PIN; se vuelven a bloquear al cerrar la app o tras 1 h fuera. «Olvidé el PIN» pide la contraseña IPTV. | Pedido por Jose el 2026-11-09. Un PIN por carpeta sería más difícil de recordar. En la etapa 2 se sincronizan PIN y carpetas. |
+| VLC en Android: cómo se abre | Primero directo a `org.videolan.vlc.gui.video.VideoPlayerActivity` (ACTION_VIEW); si no se puede, la acción `org.videolan.vlc.player.result`; al final «abrir con VLC». El aviso de error dice cuál se usó y qué devolvió VLC (sin la URL). | En el celular de Jose VLC retomaba pero no devolvía la posición (2026-11-09): solo la pantalla del reproductor la devuelve. |
 | Firma Android | Workflow «Create Android signing key» (una vez) y secretos `ANDROID_KEYSTORE_*` | Sin clave fija, cada APK se firma con una clave temporal y no se instala encima del anterior. |
 
 ## Pendiente
@@ -52,3 +53,4 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | 2026-11-09 | v0.3.0: marcar episodios y películas como vistos, quitar de Seguir viendo, aviso de posición al volver de VLC, carpetas con PIN; arreglo de la carpeta Seguir viendo vacía. |
 | 2026-11-09 | Arreglo: las pestañas Series/Películas/Canales recargan las categorías al terminar cada descarga de la lista (en Windows quedaban vacías tras el primer inicio). |
 | 2026-11-09 | Archivos del Release y de cada compilación con la versión en el nombre (`eterotv-0.3.0.apk`, `eterotv-windows-0.3.0.zip`): con el mismo nombre siempre, el celular guardaba copias «(1)» y se instalaba una vieja. |
+| 2026-11-09 | v0.3.1: VLC en Android se abre directo en su reproductor para que devuelva la posición; aviso con detalle si no la devuelve. |
