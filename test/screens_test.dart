@@ -9,6 +9,7 @@ import 'package:eterotv/iptv/xtream.dart';
 import 'package:eterotv/player/vlc.dart';
 import 'package:eterotv/state/app_state.dart';
 import 'package:eterotv/ui/home_screen.dart';
+import 'package:eterotv/ui/rows.dart';
 import 'package:eterotv/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -154,4 +155,47 @@ void main() {
       }
     });
   }
+
+  testWidgets('Series se llena cuando termina de bajar la lista', (tester) async {
+    late AppState state;
+    late AppDatabase db;
+    await tester.runAsync(() async {
+      SharedPreferences.setMockInitialValues({});
+      db = AppDatabase(
+        await databaseFactoryFfi.openDatabase(
+          inMemoryDatabasePath,
+          options: OpenDatabaseOptions(singleInstance: false),
+        ),
+      );
+      await AppDatabase.createTables(db.db);
+      state = AppState(db: db, prefs: await SharedPreferences.getInstance(), deviceId: 't', vlc: _NoVlc());
+    });
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: state,
+        child: MaterialApp(
+          theme: eteroTheme(),
+          home: const Scaffold(body: KindTab(kind: Kind.series)),
+        ),
+      ),
+    );
+    await settle(tester);
+    expect(find.textContaining('No hay categorías'), findsOneWidget);
+
+    // The first download finishes after the tab was built.
+    await tester.runAsync(() async {
+      await db.replaceCatalog(
+        Kind.series,
+        [Category(Kind.series, 's1', 'Ciencia ficción')],
+        [CatalogItem(kind: Kind.series, id: 'a', name: 'Serie A', categoryId: 's1')],
+      );
+      await state.prefs.setInt('lastRefresh', 5);
+      await state.toggleFavorite(CatalogItem(kind: Kind.series, id: 'a', name: 'Serie A', categoryId: 's1'));
+    });
+    await settle(tester);
+    expect(find.text('Ciencia ficción'), findsOneWidget);
+  });
 }

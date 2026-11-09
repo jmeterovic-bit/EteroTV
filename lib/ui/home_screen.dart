@@ -237,7 +237,7 @@ class _HomeTabState extends State<HomeTab> {
             ),
           for (final c in _rows.where((c) => !s.isLocked(c)))
             CategoryRow(
-              key: ValueKey('${c.kind.name}:${c.id}'),
+              key: ValueKey('${c.kind.name}:${c.id}@${s.lastRefresh}'),
               category: c,
               titlePrefix: c.kind == Kind.series ? 'Series · ' : 'Películas · ',
             ),

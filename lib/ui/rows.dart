@@ -67,15 +67,13 @@ class KindTab extends StatefulWidget {
 
 class _KindTabState extends State<KindTab> {
   List<Category>? _cats;
+  Object? _loadedFor = const Object();
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final c = await context.read<AppState>().db.categories(widget.kind);
+  /// Loads the categories, and again each time a list download finishes
+  /// (the tab is built at start, maybe before the first download).
+  Future<void> _load(AppState s) async {
+    _loadedFor = s.lastRefresh;
+    final c = await s.db.categories(widget.kind);
     if (mounted) setState(() => _cats = c);
   }
 
@@ -84,6 +82,7 @@ class _KindTabState extends State<KindTab> {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<AppState>();
+    if (_loadedFor != s.lastRefresh) _load(s);
     final kind = widget.kind;
     final live = kind == Kind.live;
     final cats = _cats;
@@ -106,8 +105,19 @@ class _KindTabState extends State<KindTab> {
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
               padding: const EdgeInsets.only(bottom: 96),
-              itemCount: cats.length + 2,
+              itemCount: cats.length + 3,
               itemBuilder: (_, i) {
+                if (i == cats.length + 2) {
+                  if (cats.isNotEmpty) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      s.refreshing
+                          ? '${s.refreshStep} Las categorías aparecen aquí cuando termine.'
+                          : 'No hay categorías. Prueba «Actualizar la lista ahora» en Ajustes.',
+                    ),
+                  );
+                }
                 if (i == 0) {
                   return Shelf(
                     title: 'Seguir viendo',
@@ -124,7 +134,7 @@ class _KindTabState extends State<KindTab> {
                     children: [for (final it in fav) card(it)],
                   );
                 }
-                return CategoryRow(key: ValueKey(cats[i - 2].id), category: cats[i - 2]);
+                return CategoryRow(key: ValueKey('${cats[i - 2].id}@${s.lastRefresh}'), category: cats[i - 2]);
               },
             ),
     );

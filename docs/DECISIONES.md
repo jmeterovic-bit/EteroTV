@@ -50,3 +50,4 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | 2026-11-09 | v0.2.0: diseño nuevo estilo streaming (Inicio con destacado y filas, pestañas por tipo, menú ⋮ en Continuar viendo). |
 | 2026-11-09 | CI: acciones de GitHub a versiones con Node 24 (checkout v5, setup-java v5, upload/download-artifact v6) por el aviso de Node 20 obsoleto. |
 | 2026-11-09 | v0.3.0: marcar episodios y películas como vistos, quitar de Seguir viendo, aviso de posición al volver de VLC, carpetas con PIN; arreglo de la carpeta Seguir viendo vacía. |
+| 2026-11-09 | Arreglo: las pestañas Series/Películas/Canales recargan las categorías al terminar cada descarga de la lista (en Windows quedaban vacías tras el primer inicio). |

@@ -8,6 +8,7 @@
 - Películas: «Marcar como vista» y «desmarcar» aunque nunca se hayan abierto.
 - Carpetas protegidas con PIN de 4 números: el candado de cada carpeta la protege; aparece en la lista pero no muestra nada (ni en Inicio, búsqueda, favoritos o Seguir viendo) hasta ingresar el PIN. Se vuelve a bloquear al cerrar la app o tras una hora fuera. «Olvidé el PIN» pide la contraseña de la cuenta IPTV.
 - Arreglo: la carpeta «Seguir viendo» quedaba cargando sin mostrar nada.
+- Arreglo: Series, Películas y Canales quedaban vacías si la lista terminaba de bajar con la app ya abierta (por ejemplo, la primera vez).
 
 ## 0.2.0
 - Diseño nuevo al estilo de las apps de streaming: pestañas Inicio, Series, Películas, Canales y Buscar (barra abajo en el celular, barra lateral en la TV y el PC).
