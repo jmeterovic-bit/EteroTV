@@ -159,7 +159,7 @@ class _ContinueCardState extends State<ContinueCard> {
             ),
             ListTile(
               leading: const Icon(Icons.close),
-              title: const Text('Quitar de Continuar viendo'),
+              title: const Text('Quitar de Seguir viendo'),
               onTap: () => Navigator.pop(c, 'remove'),
             ),
           ],
@@ -269,6 +269,60 @@ class _ContinueCardState extends State<ContinueCard> {
   }
 }
 
+/// Long-press menu of a movie or series poster.
+Future<void> showItemMenu(BuildContext context, CatalogItem item) async {
+  final s = context.read<AppState>();
+  final fav = s.isFavorite(item.kind, item.id);
+  final started = s.isInProgress(item);
+  final watched = item.kind == Kind.movie && (s.entry(Kind.movie, item.id)?.watched ?? false);
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    builder: (c) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Ver ficha'),
+            onTap: () => Navigator.pop(c, 'info'),
+          ),
+          ListTile(
+            leading: Icon(fav ? Icons.star : Icons.star_border),
+            title: Text(fav ? 'Quitar de favoritos' : 'Agregar a favoritos'),
+            onTap: () => Navigator.pop(c, 'fav'),
+          ),
+          if (item.kind == Kind.movie)
+            ListTile(
+              leading: Icon(watched ? Icons.remove_done : Icons.check_circle_outline),
+              title: Text(watched ? 'Marcar como no vista' : 'Marcar como vista'),
+              onTap: () => Navigator.pop(c, 'watched'),
+            ),
+          if (started)
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('Quitar de Seguir viendo'),
+              onTap: () => Navigator.pop(c, 'remove'),
+            ),
+        ],
+      ),
+    ),
+  );
+  if (!context.mounted) return;
+  switch (action) {
+    case 'info':
+      openDetails(context, item);
+    case 'fav':
+      await s.toggleFavorite(item);
+    case 'watched':
+      await s.setMovieWatched(item, !watched);
+    case 'remove':
+      await s.removeFromInProgress(item);
+  }
+}
+
 /// Poster for "Mi lista" and category rows.
 class PosterCard extends StatelessWidget {
   const PosterCard({super.key, required this.item, this.autofocus = false});
@@ -289,6 +343,7 @@ class PosterCard extends StatelessWidget {
           ? fraction(e.positionSecs, e.durationSecs)
           : null,
       onTap: () => openDetails(context, item),
+      onLongPress: () => showItemMenu(context, item),
     );
   }
 }

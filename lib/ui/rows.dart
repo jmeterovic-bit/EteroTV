@@ -33,6 +33,15 @@ class _CategoryRowState extends State<CategoryRow> {
 
   @override
   Widget build(BuildContext context) {
+    final locked = context.select<AppState, bool>((s) => s.isLocked(widget.category));
+    if (locked) {
+      return ListTile(
+        leading: const Icon(Icons.lock, color: Colors.white54),
+        title: Text('${widget.titlePrefix}${widget.category.name}'),
+        subtitle: const Text('Protegida con PIN'),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ItemsScreen(category: widget.category))),
+      );
+    }
     final items = _items;
     final live = widget.category.kind == Kind.live;
     if (items == null) return SizedBox(height: (live ? channelRowHeight : posterRowHeight) + 50);

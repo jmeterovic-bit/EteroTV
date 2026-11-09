@@ -89,11 +89,16 @@ class _MovieScreenState extends State<MovieScreen> {
                         label: Text(fav ? 'En favoritos' : 'Favorito'),
                         onPressed: () => s.toggleFavorite(widget.item),
                       ),
-                      if (e != null)
+                      OutlinedButton.icon(
+                        icon: Icon(e?.watched == true ? Icons.check_circle : Icons.check_circle_outline),
+                        label: Text(e?.watched == true ? 'Vista (desmarcar)' : 'Marcar como vista'),
+                        onPressed: () => s.setMovieWatched(widget.item, !(e?.watched ?? false)),
+                      ),
+                      if (canResume)
                         OutlinedButton.icon(
-                          icon: Icon(e.watched ? Icons.check_circle : Icons.check_circle_outline),
-                          label: Text(e.watched ? 'Vista' : 'Marcar como vista'),
-                          onPressed: () => s.setWatched(e, !e.watched),
+                          icon: const Icon(Icons.close),
+                          label: const Text('Quitar de Seguir viendo'),
+                          onPressed: () => s.removeFromInProgress(widget.item),
                         ),
                     ],
                   ),

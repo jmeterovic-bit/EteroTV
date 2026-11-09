@@ -7,7 +7,9 @@ import '../data/database.dart';
 import '../data/library.dart';
 import '../iptv/xtream.dart';
 import '../state/app_state.dart';
+import 'cards.dart' show showItemMenu;
 import 'movie_screen.dart';
+import 'pin.dart';
 import 'play.dart';
 import 'series_screen.dart';
 import 'widgets.dart';
@@ -24,6 +26,8 @@ const favoritesFolder = '__favoritos__';
 
 /// Id of the "Seguir viendo" folder (movies and series started but not finished).
 const inProgressFolder = '__a_medias__';
+
+bool isSpecialFolder(Category c) => c.id == favoritesFolder || c.id == inProgressFolder;
 
 String folderTitle(Category c) => switch (c.id) {
   favoritesFolder => 'Favoritos',
@@ -62,6 +66,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
   @override
   Widget build(BuildContext context) {
     final cats = _cats;
+    final st = context.watch<AppState>();
     final wide = MediaQuery.sizeOf(context).width >= 800;
     final list = cats == null
         ? const Center(child: CircularProgressIndicator())
@@ -77,6 +82,10 @@ class _BrowseScreenState extends State<BrowseScreen> {
                   _ => null,
                 },
                 title: Text(folderTitle(cats[i])),
+                trailing: st.isProtected(cats[i])
+                    ? Icon(st.isLocked(cats[i]) ? Icons.lock : Icons.lock_open, size: 18, color: Colors.white54)
+                    : null,
+                onLongPress: isSpecialFolder(cats[i]) ? null : () => toggleProtection(context, cats[i], cats[i].name),
                 onFocusChange: wide
                     ? (f) {
                         if (f) setState(() => _selected = cats[i]);
@@ -132,7 +141,8 @@ class _KindSearchState extends State<_KindSearch> {
   void _changed(String q) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () async {
-      final r = await context.read<AppState>().db.search(q, kind: widget.kind);
+      final st = context.read<AppState>();
+      final r = (await st.db.search(q, kind: widget.kind)).where((it) => !st.isHiddenItem(it)).toList();
       if (!mounted) return;
       setState(() {
         _q = q.trim();
@@ -239,7 +249,8 @@ class _ItemsViewState extends State<ItemsView> {
   }
 
   Future<void> _searchEverywhere() async {
-    final r = await context.read<AppState>().db.search(_q, kind: kind);
+    final st = context.read<AppState>();
+    final r = (await st.db.search(_q, kind: kind)).where((it) => !st.isHiddenItem(it)).toList();
     if (mounted) setState(() => _everywhereResults = r);
   }
 
@@ -250,18 +261,41 @@ class _ItemsViewState extends State<ItemsView> {
 
   @override
   Widget build(BuildContext context) {
-    // The favourites folder follows the library live (unstarring removes it).
-    final items = isFavorites ? [for (final e in context.watch<AppState>().favorites(kind)) catalogItemOf(e)] : _items;
+    final st = context.watch<AppState>();
+    final folderName = folderTitle(widget.category);
+    if (!isSpecialFolder(widget.category) && st.isLocked(widget.category)) {
+      return LockedFolder(category: widget.category, name: folderName);
+    }
+    // The library folders follow the library live (unstarring removes it).
+    final items = isFavorites
+        ? [for (final e in st.favorites(kind)) catalogItemOf(e)]
+        : isInProgress
+        ? st.inProgress(kind)
+        : _items;
     final words = AppDatabase.searchKey(_q).split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
     final shown = items == null
         ? null
         : words.isEmpty
         ? items
         : (_everywhere ? _everywhereResults : items.where((it) => _matches(it, words)).toList());
-    final folderName = folderTitle(widget.category);
     return Column(
       children: [
-        _SearchField(hint: 'Buscar', onChanged: _changed),
+        Row(
+          children: [
+            Expanded(
+              child: _SearchField(hint: 'Buscar', onChanged: _changed),
+            ),
+            if (!isSpecialFolder(widget.category))
+              Padding(
+                padding: const EdgeInsets.only(right: 8, top: 4),
+                child: IconButton(
+                  tooltip: st.isProtected(widget.category) ? 'Quitar el PIN de esta carpeta' : 'Proteger con PIN',
+                  icon: Icon(st.isProtected(widget.category) ? Icons.lock : Icons.lock_outline),
+                  onPressed: () => toggleProtection(context, widget.category, folderName),
+                ),
+              ),
+          ],
+        ),
         if (_q.isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -398,6 +432,7 @@ class PosterTile extends StatelessWidget {
           builder: (_) => item.kind == Kind.series ? SeriesScreen(item: item) : MovieScreen(item: item),
         ),
       ),
+      onLongPress: () => showItemMenu(context, item),
     );
   }
 }

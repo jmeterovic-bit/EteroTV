@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../iptv/xtream.dart';
 import '../state/app_state.dart';
+import 'pin.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -106,6 +107,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: Text(_vlc == null ? 'Buscando VLC…' : (_vlc! ? 'VLC encontrado' : 'VLC no está instalado')),
           ),
           const Divider(),
+          const ListTile(
+            title: Text('Carpetas con PIN', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.lock_outline),
+            title: Text(
+              s.lockedCount == 0
+                  ? 'Ninguna carpeta protegida'
+                  : (s.lockedCount == 1 ? '1 carpeta protegida' : '${s.lockedCount} carpetas protegidas'),
+            ),
+            subtitle: const Text(
+              'Para proteger una carpeta, ábrela desde «Carpetas y búsqueda» y toca el candado '
+              '(en el celular también puedes mantenerla presionada).',
+            ),
+          ),
+          if (s.hasPin) ...[
+            ListTile(
+              leading: const Icon(Icons.pin_outlined),
+              title: const Text('Cambiar el PIN'),
+              onTap: () async {
+                final old = await askPin(context, title: 'PIN actual', forgot: true);
+                if (old == null || !context.mounted) return;
+                if (old == 'forgot') {
+                  await resetPin(context);
+                } else if (s.checkPin(old)) {
+                  await createPin(context, title: 'PIN nuevo');
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN incorrecto.')));
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.lock),
+              title: const Text('Bloquear ya las carpetas abiertas'),
+              onTap: () async {
+                await s.lockAll();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Carpetas bloqueadas.')));
+                }
+              },
+            ),
+          ],
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Cambiar de cuenta IPTV'),
@@ -130,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
-          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '0.2.0'),
+          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '0.3.0'),
         ],
       ),
     );

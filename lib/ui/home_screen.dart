@@ -23,6 +23,29 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
 
+  /// Folders opened with the PIN lock again after an hour away from the app.
+  static const relockAfter = Duration(hours: 1);
+  late final AppLifecycleListener _life;
+  DateTime? _hiddenAt;
+
+  @override
+  void initState() {
+    super.initState();
+    _life = AppLifecycleListener(
+      onHide: () => _hiddenAt = DateTime.now(),
+      onShow: () {
+        final t = _hiddenAt;
+        if (t != null && DateTime.now().difference(t) > relockAfter) context.read<AppState>().lockAll();
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _life.dispose();
+    super.dispose();
+  }
+
   static const _dest = [
     (Icons.home_outlined, Icons.home, 'Inicio'),
     (Icons.video_library_outlined, Icons.video_library, 'Series'),
@@ -212,7 +235,7 @@ class _HomeTabState extends State<HomeTab> {
                 'Lo que dejes a medias aparece en «Continuar viendo».',
               ),
             ),
-          for (final c in _rows)
+          for (final c in _rows.where((c) => !s.isLocked(c)))
             CategoryRow(
               key: ValueKey('${c.kind.name}:${c.id}'),
               category: c,

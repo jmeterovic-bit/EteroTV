@@ -18,6 +18,7 @@ class FocusCard extends StatefulWidget {
     this.autofocus = false,
     this.badge,
     required this.onTap,
+    this.onLongPress,
   });
 
   final String title;
@@ -30,6 +31,9 @@ class FocusCard extends StatefulWidget {
   final bool autofocus;
   final IconData? badge;
   final VoidCallback onTap;
+
+  /// Phone: long press opens the item's menu.
+  final VoidCallback? onLongPress;
 
   @override
   State<FocusCard> createState() => _FocusCardState();
@@ -45,6 +49,7 @@ class _FocusCardState extends State<FocusCard> {
       child: InkWell(
         autofocus: widget.autofocus,
         onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
         onFocusChange: (f) {
           setState(() => _focused = f);
           if (f) Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 150));

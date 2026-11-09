@@ -5,7 +5,28 @@ import '../iptv/xtream.dart';
 import '../logic/progress.dart';
 import '../state/app_state.dart';
 import 'play.dart';
+import 'theme.dart';
 import 'widgets.dart';
+
+/// The last episode played if unfinished; otherwise the first one not
+/// seen after it (or from the start, if nothing was played here).
+Episode? nextEpisode(SeriesInfo info, AppState s) {
+  final all = [for (final k in (info.seasons.keys.toList()..sort())) ...info.seasons[k]!];
+  bool seen(Episode ep) => s.entry(Kind.episode, ep.id)?.watched ?? false;
+  var lastIdx = -1, lastAt = 0;
+  for (var i = 0; i < all.length; i++) {
+    final e = s.entry(Kind.episode, all[i].id);
+    if (e != null && e.lastPlayed > lastAt) {
+      lastAt = e.lastPlayed;
+      lastIdx = i;
+    }
+  }
+  if (lastIdx >= 0 && !seen(all[lastIdx])) return all[lastIdx];
+  for (var i = lastIdx + 1; i < all.length; i++) {
+    if (!seen(all[i])) return all[i];
+  }
+  return null;
+}
 
 class SeriesScreen extends StatefulWidget {
   const SeriesScreen({super.key, required this.item});
@@ -46,23 +67,6 @@ class _SeriesScreenState extends State<SeriesScreen> {
     }
   }
 
-  /// First episode not watched after the last one played.
-  static Episode? nextEpisode(SeriesInfo info, AppState s) {
-    final all = [for (final k in (info.seasons.keys.toList()..sort())) ...info.seasons[k]!];
-    var lastIdx = -1, lastAt = 0;
-    for (var i = 0; i < all.length; i++) {
-      final e = s.entry(Kind.episode, all[i].id);
-      if (e != null && e.lastPlayed > lastAt) {
-        lastAt = e.lastPlayed;
-        lastIdx = i;
-      }
-    }
-    if (lastIdx < 0) return all.isEmpty ? null : all.first;
-    final last = s.entry(Kind.episode, all[lastIdx].id)!;
-    if (!last.watched) return all[lastIdx];
-    return lastIdx + 1 < all.length ? all[lastIdx + 1] : null;
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = context.watch<AppState>();
@@ -90,16 +94,25 @@ class _SeriesScreenState extends State<SeriesScreen> {
               children: [
                 if (info.plot.isNotEmpty) Text(info.plot, maxLines: 4, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 12),
-                if (next != null)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.icon(
-                      autofocus: true,
-                      icon: const Icon(Icons.play_arrow),
-                      label: Text('Ver T${next.season} E${next.number}'),
-                      onPressed: () => playWithChecks(context, (st) => st.playEpisode(widget.item, next)),
-                    ),
-                  ),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    if (next != null)
+                      FilledButton.icon(
+                        autofocus: true,
+                        icon: const Icon(Icons.play_arrow),
+                        label: Text('Ver T${next.season} E${next.number}'),
+                        onPressed: () => playWithChecks(context, (st) => st.playEpisode(widget.item, next)),
+                      ),
+                    if (s.isInProgress(widget.item))
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.close),
+                        label: const Text('Quitar de Seguir viendo'),
+                        onPressed: () => s.removeSeriesFromContinue(widget.item.id),
+                      ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 FocusTraversalGroup(
                   child: Wrap(
@@ -114,10 +127,35 @@ class _SeriesScreenState extends State<SeriesScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
+                if (_season != null) _SeasonWatched(series: widget.item, episodes: info.seasons[_season] ?? const []),
                 for (final ep in info.seasons[_season] ?? const <Episode>[]) _EpisodeTile(series: widget.item, ep: ep),
               ],
             ),
+    );
+  }
+}
+
+/// "Marcar temporada como vista" / "como no vista".
+class _SeasonWatched extends StatelessWidget {
+  const _SeasonWatched({required this.series, required this.episodes});
+  final CatalogItem series;
+  final List<Episode> episodes;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<AppState>();
+    final all = episodes.isNotEmpty && episodes.every((ep) => s.entry(Kind.episode, ep.id)?.watched ?? false);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        icon: Icon(all ? Icons.remove_done : Icons.done_all),
+        label: Text(all ? 'Marcar temporada como no vista' : 'Marcar temporada como vista'),
+        onPressed: () async {
+          for (final ep in episodes) {
+            await s.setEpisodeWatched(series, ep, !all);
+          }
+        },
+      ),
     );
   }
 }
@@ -132,7 +170,8 @@ class _EpisodeTile extends StatelessWidget {
     final s = context.watch<AppState>();
     final e = s.entry(Kind.episode, ep.id);
     final dur = (e?.durationSecs ?? 0) > 0 ? e!.durationSecs : ep.durationSecs;
-    final started = e != null && e.positionSecs > 0 && !e.watched;
+    final watched = e?.watched ?? false;
+    final started = e != null && e.positionSecs > 0 && !watched;
     return ListTile(
       leading: CircleAvatar(child: Text('${ep.number}')),
       title: Text(ep.title.isEmpty ? 'Episodio ${ep.number}' : ep.title),
@@ -141,22 +180,25 @@ class _EpisodeTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 4),
-                LinearProgressIndicator(value: fraction(e.positionSecs, dur)),
+                LinearProgressIndicator(value: fraction(e.positionSecs, dur), color: accent),
                 Text(progressLabel(e.positionSecs, dur)),
               ],
             )
-          : (dur > 0 ? Text(formatTime(dur)) : null),
-      onTap: () => playWithChecks(context, (st) => st.playEpisode(series, ep)),
-      trailing: e == null
-          ? null
-          : IconButton(
-              tooltip: e.watched ? 'Marcar como no visto' : 'Marcar como visto',
-              icon: Icon(
-                e.watched ? Icons.check_circle : Icons.check_circle_outline,
-                color: e.watched ? Colors.greenAccent : null,
-              ),
-              onPressed: () => s.setWatched(e, !e.watched),
+          : Text(
+              [
+                if (dur > 0) formatTime(dur),
+                if (watched) 'Visto' else if (e != null && e.lastPlayed > 0) 'Empezado',
+              ].join(' · '),
             ),
+      onTap: () => playWithChecks(context, (st) => st.playEpisode(series, ep)),
+      trailing: IconButton(
+        tooltip: watched ? 'Marcar como no visto' : 'Marcar como visto',
+        icon: Icon(
+          watched ? Icons.check_circle : Icons.check_circle_outline,
+          color: watched ? Colors.greenAccent : Colors.white38,
+        ),
+        onPressed: () => s.setEpisodeWatched(series, ep, !watched),
+      ),
     );
   }
 }

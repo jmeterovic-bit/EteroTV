@@ -107,6 +107,16 @@ class AppDatabase {
     return rows.map(CatalogItem.fromRow).toList();
   }
 
+  Future<List<String>> idsIn(Kind kind, String categoryId) async => [
+    for (final r in await db.query(
+      'catalog',
+      columns: ['id'],
+      where: 'kind = ? AND category_id = ?',
+      whereArgs: [kind.name, categoryId],
+    ))
+      r['id'] as String,
+  ];
+
   Future<CatalogItem?> item(Kind kind, String id) async {
     final rows = await db.query('catalog', where: 'kind = ? AND id = ?', whereArgs: [kind.name, id], limit: 1);
     return rows.isEmpty ? null : CatalogItem.fromRow(rows.first);

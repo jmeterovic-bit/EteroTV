@@ -80,6 +80,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("startActivityForResult is enough here")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -90,10 +91,13 @@ class MainActivity : FlutterActivity() {
             result.success(null)
             return
         }
+        // Read as any number: some VLC versions send Int, others Long.
+        val extras = data.extras
+        fun num(key: String): Long = (extras?.get(key) as? Number)?.toLong() ?: -1L
         result.success(
             mapOf(
-                "positionMs" to data.getLongExtra("extra_position", -1L),
-                "durationMs" to data.getLongExtra("extra_duration", -1L),
+                "positionMs" to num("extra_position"),
+                "durationMs" to num("extra_duration"),
             )
         )
     }

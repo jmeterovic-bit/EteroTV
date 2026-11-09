@@ -25,7 +25,8 @@ class _SearchScreenState extends State<SearchScreen> {
   void _changed(String q) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () async {
-      final r = await context.read<AppState>().db.search(q);
+      final st = context.read<AppState>();
+      final r = (await st.db.search(q)).where((it) => !st.isHiddenItem(it)).toList();
       if (mounted) setState(() => _results = r);
     });
   }

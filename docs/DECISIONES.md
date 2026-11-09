@@ -23,6 +23,10 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | Carpetas propias | «Seguir viendo» (antes «A medias», renombrada por Jose el 2026-11-09) (películas y series) y «Favoritos» van primero en cada categoría | Pedido por Jose el 2026-11-09 tras la primera prueba. |
 | Búsqueda | Buscador en cada categoría con opción «Solo en <carpeta>» o «En todo <categoría>»; sin acentos y por palabras | Pedido por Jose el 2026-11-09. |
 | Diseño | Estilo streaming: pestañas (abajo en celular, lateral en TV/PC), destacado, «Continuar viendo» con progreso, «Mi lista» y filas por categoría con «Ver todo»; las carpetas y el buscador quedan detrás de «Carpetas y búsqueda» | Pedido por Jose el 2026-11-09; aprobó el boceto (`eterotv/boceto-netflix.png`). Diseño propio, no copia de Netflix. |
+| Marcar visto a mano | Botón en cada episodio y por temporada, y en películas; marcar no cuenta como «empezado» | Pedido por Jose el 2026-11-09 (ya había visto episodios en otro lado). |
+| Quitar de Seguir viendo | Borra la posición y la fecha de reproducción de la película o de todos los episodios de la serie; lo visto se conserva | Pedido por Jose el 2026-11-09. |
+| Aviso al volver de VLC | Mensaje con la posición guardada, o que VLC no la devolvió | En el celular de Jose la lista de episodios no mostraba el avance aunque VLC retomaba (posible: VLC recordaba la posición por su cuenta y no la devolvía). El aviso dice cuál de los dos pasa. |
+| Carpetas con PIN | Un solo PIN de 4 números para todas las carpetas protegidas, guardado cifrado (`flutter_secure_storage`); las carpetas protegidas en `SharedPreferences`. Lo de esas carpetas no aparece en ninguna parte hasta ingresar el PIN; se vuelven a bloquear al cerrar la app o tras 1 h fuera. «Olvidé el PIN» pide la contraseña IPTV. | Pedido por Jose el 2026-11-09. Un PIN por carpeta sería más difícil de recordar. En la etapa 2 se sincronizan PIN y carpetas. |
 | Firma Android | Workflow «Create Android signing key» (una vez) y secretos `ANDROID_KEYSTORE_*` | Sin clave fija, cada APK se firma con una clave temporal y no se instala encima del anterior. |
 
 ## Pendiente
@@ -45,3 +49,4 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | 2026-11-09 | v0.1.1 (cont.): carpetas A medias y Favoritos, buscador por categoría, detección de VLC más tolerante. |
 | 2026-11-09 | v0.2.0: diseño nuevo estilo streaming (Inicio con destacado y filas, pestañas por tipo, menú ⋮ en Continuar viendo). |
 | 2026-11-09 | CI: acciones de GitHub a versiones con Node 24 (checkout v5, setup-java v5, upload/download-artifact v6) por el aviso de Node 20 obsoleto. |
+| 2026-11-09 | v0.3.0: marcar episodios y películas como vistos, quitar de Seguir viendo, aviso de posición al volver de VLC, carpetas con PIN; arreglo de la carpeta Seguir viendo vacía. |
