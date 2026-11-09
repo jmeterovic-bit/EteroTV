@@ -35,11 +35,17 @@ class MainActivity : FlutterActivity() {
             }
     }
 
+    /** Asks Android who can open the VLC "result" intent, instead of
+     *  looking the package up by name (that failed on Jose's phone). */
     private fun vlcInstalled(): Boolean = try {
-        packageManager.getPackageInfo("org.videolan.vlc", 0)
-        true
+        val probe = Intent("org.videolan.vlc.player.result").apply {
+            setPackage("org.videolan.vlc")
+            setDataAndType(Uri.parse("http://example.com/v.ts"), "video/*")
+        }
+        packageManager.queryIntentActivities(probe, 0).isNotEmpty() ||
+            packageManager.getLaunchIntentForPackage("org.videolan.vlc") != null
     } catch (_: Exception) {
-        false
+        true // unknown: try to open it anyway
     }
 
     private fun play(url: String, title: String, positionMs: Long, result: MethodChannel.Result) {
@@ -58,11 +64,23 @@ class MainActivity : FlutterActivity() {
             pending = result
             startActivityForResult(intent, vlcRequest)
         } catch (e: ActivityNotFoundException) {
-            pending = null
-            result.error("no_vlc", "VLC is not installed", null)
+            // Plain "open with VLC" as a second try (no position comes back).
+            try {
+                startActivityForResult(
+                    Intent(Intent.ACTION_VIEW).apply {
+                        setPackage("org.videolan.vlc")
+                        setDataAndTypeAndNormalize(Uri.parse(url), "video/*")
+                    },
+                    vlcRequest,
+                )
+            } catch (e2: ActivityNotFoundException) {
+                pending = null
+                result.error("no_vlc", "VLC is not installed", null)
+            }
         }
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("startActivityForResult is enough here")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -73,10 +91,13 @@ class MainActivity : FlutterActivity() {
             result.success(null)
             return
         }
+        // Read as any number: some VLC versions send Int, others Long.
+        val extras = data.extras
+        fun num(key: String): Long = (extras?.get(key) as? Number)?.toLong() ?: -1L
         result.success(
             mapOf(
-                "positionMs" to data.getLongExtra("extra_position", -1L),
-                "durationMs" to data.getLongExtra("extra_duration", -1L),
+                "positionMs" to num("extra_position"),
+                "durationMs" to num("extra_duration"),
             )
         )
     }

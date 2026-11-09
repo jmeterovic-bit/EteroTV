@@ -5,7 +5,7 @@
     <uses-feature android:name="android.software.leanback" android:required="false"/>
     <application
         android:label="EteroTV"
-        android:banner="@mipmap/ic_launcher"
+        android:banner="@drawable/banner"
         android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
@@ -46,6 +46,14 @@
     <queries>
         <!-- VLC, the external player -->
         <package android:name="org.videolan.vlc"/>
+        <intent>
+            <action android:name="org.videolan.vlc.player.result"/>
+            <data android:scheme="http"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:mimeType="video/*"/>
+        </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

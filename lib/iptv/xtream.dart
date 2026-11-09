@@ -1,18 +1,26 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
 /// What the user types once: server URL, user name and password.
 class Credentials {
   Credentials({required String server, required this.username, required this.password})
-      : server = normalizeServer(server);
+    : server = normalizeServer(server);
 
   final String server;
   final String username;
   final String password;
 
-  Map<String, String> toJson() =>
-      {'server': server, 'username': username, 'password': password};
+  /// Same account over plain http (most IPTV ports are not encrypted).
+  Credentials withHttp() => Credentials(
+    server: server.replaceFirst(RegExp('^https://', caseSensitive: false), 'http://'),
+    username: username,
+    password: password,
+  );
+
+  Map<String, String> toJson() => {'server': server, 'username': username, 'password': password};
 
   static Credentials? fromJson(Map<String, dynamic>? j) {
     if (j == null || j['server'] == null) return null;
@@ -102,30 +110,30 @@ class CatalogItem {
   final int number;
 
   Map<String, Object?> toRow() => {
-        'kind': kind.name,
-        'id': id,
-        'name': name,
-        'category_id': categoryId,
-        'icon': icon,
-        'ext': extension,
-        'epg_id': epgId,
-        'tmdb_id': tmdbId,
-        'year': year,
-        'num': number,
-      };
+    'kind': kind.name,
+    'id': id,
+    'name': name,
+    'category_id': categoryId,
+    'icon': icon,
+    'ext': extension,
+    'epg_id': epgId,
+    'tmdb_id': tmdbId,
+    'year': year,
+    'num': number,
+  };
 
   static CatalogItem fromRow(Map<String, Object?> r) => CatalogItem(
-        kind: Kind.values.byName(r['kind'] as String),
-        id: r['id'] as String,
-        name: r['name'] as String,
-        categoryId: (r['category_id'] ?? '') as String,
-        icon: (r['icon'] ?? '') as String,
-        extension: (r['ext'] ?? '') as String,
-        epgId: (r['epg_id'] ?? '') as String,
-        tmdbId: (r['tmdb_id'] ?? '') as String,
-        year: (r['year'] ?? '') as String,
-        number: (r['num'] ?? 0) as int,
-      );
+    kind: Kind.values.byName(r['kind'] as String),
+    id: r['id'] as String,
+    name: r['name'] as String,
+    categoryId: (r['category_id'] ?? '') as String,
+    icon: (r['icon'] ?? '') as String,
+    extension: (r['ext'] ?? '') as String,
+    epgId: (r['epg_id'] ?? '') as String,
+    tmdbId: (r['tmdb_id'] ?? '') as String,
+    year: (r['year'] ?? '') as String,
+    number: (r['num'] ?? 0) as int,
+  );
 }
 
 class Episode {
@@ -160,8 +168,11 @@ class MovieInfo {
 }
 
 class XtreamException implements Exception {
-  XtreamException(this.message);
+  XtreamException(this.message, {this.tlsMismatch = false});
   final String message;
+
+  /// The server answered plain HTTP to an https:// request.
+  final bool tlsMismatch;
   @override
   String toString() => message;
 }
@@ -175,16 +186,22 @@ class XtreamClient {
   final http.Client _http;
 
   Uri _api([Map<String, String> extra = const {}]) =>
-      Uri.parse('${creds.server}/player_api.php').replace(queryParameters: {
-        'username': creds.username,
-        'password': creds.password,
-        ...extra,
-      });
+      Uri.parse('${creds.server}/player_api.php')
+          .replace(queryParameters: {'username': creds.username, 'password': creds.password, ...extra});
 
   Future<dynamic> _get(Map<String, String> params) async {
     final http.Response res;
     try {
       res = await _http.get(_api(params)).timeout(const Duration(seconds: 60));
+    } on HandshakeException catch (e) {
+      throw XtreamException(
+        'El servidor no usa https en ese puerto. Prueba con http:// al inicio de la URL.',
+        tlsMismatch: e.toString().contains('WRONG_VERSION_NUMBER'),
+      );
+    } on TimeoutException {
+      throw XtreamException('El servidor no respondió. Revisa la URL y el puerto.');
+    } on SocketException {
+      throw XtreamException('No se encontró el servidor. Revisa la URL, el puerto y tu conexión a internet.');
     } catch (e) {
       throw XtreamException('No se pudo conectar con el servidor ($e)');
     }
@@ -295,18 +312,20 @@ List<CatalogItem> parseItems(Kind kind, dynamic j) {
     final id = asStr(kind == Kind.series ? e['series_id'] : e['stream_id']);
     if (id.isEmpty) continue;
     final release = asStr(e['releaseDate'] ?? e['release_date'] ?? e['year']);
-    out.add(CatalogItem(
-      kind: kind,
-      id: id,
-      name: asStr(e['name']),
-      categoryId: asStr(e['category_id']),
-      icon: asStr(kind == Kind.series ? e['cover'] : e['stream_icon']),
-      extension: asStr(e['container_extension']),
-      epgId: asStr(e['epg_channel_id']),
-      tmdbId: asStr(e['tmdb'] ?? e['tmdb_id']),
-      year: release.length >= 4 ? release.substring(0, 4) : '',
-      number: asInt(e['num']),
-    ));
+    out.add(
+      CatalogItem(
+        kind: kind,
+        id: id,
+        name: asStr(e['name']),
+        categoryId: asStr(e['category_id']),
+        icon: asStr(kind == Kind.series ? e['cover'] : e['stream_icon']),
+        extension: asStr(e['container_extension']),
+        epgId: asStr(e['epg_channel_id']),
+        tmdbId: asStr(e['tmdb'] ?? e['tmdb_id']),
+        year: release.length >= 4 ? release.substring(0, 4) : '',
+        number: asInt(e['num']),
+      ),
+    );
   }
   return out;
 }

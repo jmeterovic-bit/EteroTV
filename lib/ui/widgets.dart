@@ -18,6 +18,7 @@ class FocusCard extends StatefulWidget {
     this.autofocus = false,
     this.badge,
     required this.onTap,
+    this.onLongPress,
   });
 
   final String title;
@@ -30,6 +31,9 @@ class FocusCard extends StatefulWidget {
   final bool autofocus;
   final IconData? badge;
   final VoidCallback onTap;
+
+  /// Phone: long press opens the item's menu.
+  final VoidCallback? onLongPress;
 
   @override
   State<FocusCard> createState() => _FocusCardState();
@@ -45,6 +49,7 @@ class _FocusCardState extends State<FocusCard> {
       child: InkWell(
         autofocus: widget.autofocus,
         onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
         onFocusChange: (f) {
           setState(() => _focused = f);
           if (f) Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 150));
@@ -65,26 +70,37 @@ class _FocusCardState extends State<FocusCard> {
                     border: Border.all(color: _focused ? accent : Colors.transparent, width: 3),
                   ),
                   clipBehavior: Clip.antiAlias,
-                  child: Stack(fit: StackFit.expand, children: [
-                    NetImage(widget.image, icon: widget.icon),
-                    if (widget.badge != null)
-                      Positioned(top: 4, right: 4, child: Icon(widget.badge, color: accent, size: 20)),
-                    if (widget.progress != null)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: LinearProgressIndicator(value: widget.progress, minHeight: 4, color: accent),
-                      ),
-                  ]),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      NetImage(widget.image, icon: widget.icon),
+                      if (widget.badge != null)
+                        Positioned(top: 4, right: 4, child: Icon(widget.badge, color: accent, size: 20)),
+                      if (widget.progress != null)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: LinearProgressIndicator(value: widget.progress, minHeight: 4, color: accent),
+                        ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 4),
-              Text(widget.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontWeight: _focused ? FontWeight.bold : FontWeight.normal)),
+              Text(
+                widget.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontWeight: _focused ? FontWeight.bold : FontWeight.normal),
+              ),
               if (widget.subtitle != null)
-                Text(widget.subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  widget.subtitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
             ],
           ),
         ),
@@ -109,37 +125,59 @@ class NetImage extends StatelessWidget {
 
 /// A titled horizontal row, Netflix style.
 class Shelf extends StatelessWidget {
-  const Shelf({super.key, required this.title, required this.children, this.height = 290});
+  const Shelf({super.key, required this.title, required this.children, this.height = 290, this.onSeeAll});
   final String title;
   final List<Widget> children;
   final double height;
+  final VoidCallback? onSeeAll;
 
   @override
   Widget build(BuildContext context) {
     if (children.isEmpty) return const SizedBox.shrink();
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-        child: Text(title, style: Theme.of(context).textTheme.titleLarge),
-      ),
-      SizedBox(
-        height: height,
-        child: FocusTraversalGroup(
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemCount: children.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 14),
-            itemBuilder: (_, i) => children[i],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, onSeeAll == null ? 16 : 4, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              if (onSeeAll != null)
+                TextButton(
+                  onPressed: onSeeAll,
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [Text('Ver todo'), Icon(Icons.chevron_right)],
+                  ),
+                ),
+            ],
           ),
         ),
-      ),
-    ]);
+        SizedBox(
+          height: height,
+          child: FocusTraversalGroup(
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              itemCount: children.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 14),
+              itemBuilder: (_, i) => children[i],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
-String progressLabel(int pos, int dur) =>
-    dur > 0 ? '${formatTime(pos)} de ${formatTime(dur)}' : formatTime(pos);
+String progressLabel(int pos, int dur) => dur > 0 ? '${formatTime(pos)} de ${formatTime(dur)}' : formatTime(pos);
 
 void showError(BuildContext context, Object e) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));

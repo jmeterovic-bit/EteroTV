@@ -15,13 +15,13 @@ String normalizeName(String raw) {
   // Country / group prefix: "ES |", "ES -", "[LAT]", "|ES|".
   s = s.replaceAll(RegExp(r'^\s*\|?\s*[a-z]{2,4}\s*[|:\-]\s*'), '');
   s = s.replaceAll(RegExp(r'[\[\(][^\]\)]*[\]\)]'), ' ');
-  s = _stripAccents(s);
+  s = stripAccents(s);
   s = s.replaceAll(_noise, ' ');
   s = s.replaceAll(RegExp(r'[^a-z0-9ñ ]'), ' ');
   return s.replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
-String _stripAccents(String s) {
+String stripAccents(String s) {
   const from = 'áàäâãéèëêíìïîóòöôõúùüû';
   const to = 'aaaaaeeeeiiiiooooouuuu';
   final b = StringBuffer();
