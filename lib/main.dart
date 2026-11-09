@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 
 import 'data/database.dart';
 import 'state/app_state.dart';
+import 'sync/sync_service.dart';
 import 'ui/home_screen.dart';
 import 'ui/login_screen.dart';
 import 'ui/theme.dart';
@@ -33,7 +34,17 @@ Future<void> main() async {
   }
   final state = AppState(db: db, prefs: prefs, deviceId: deviceId);
   await state.init();
-  runApp(ChangeNotifierProvider.value(value: state, child: const EteroApp()));
+  final sync = SyncService(state);
+  await sync.start();
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: state),
+        ChangeNotifierProvider.value(value: sync),
+      ],
+      child: const EteroApp(),
+    ),
+  );
 }
 
 class EteroApp extends StatelessWidget {

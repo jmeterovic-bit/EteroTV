@@ -1,8 +1,11 @@
 package com.jmeterovic.eterotv
 
+import android.app.UiModeManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -25,6 +28,7 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "isInstalled" -> result.success(vlcInstalled())
+                    "isTv" -> result.success(isTv())
                     "play" -> play(
                         call.argument<String>("url")!!,
                         call.argument<String>("title") ?: "",
@@ -47,6 +51,14 @@ class MainActivity : FlutterActivity() {
             packageManager.getLaunchIntentForPackage("org.videolan.vlc") != null
     } catch (_: Exception) {
         true // unknown: try to open it anyway
+    }
+
+    /** Google TV, Android TV and Fire TV: sign in to Google with a code. */
+    private fun isTv(): Boolean {
+        val ui = getSystemService(UI_MODE_SERVICE) as? UiModeManager
+        return ui?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+            packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+            packageManager.hasSystemFeature("amazon.hardware.fire_tv")
     }
 
     /** How the last launch was done, to explain it when VLC sends nothing back. */

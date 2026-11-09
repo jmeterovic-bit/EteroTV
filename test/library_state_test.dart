@@ -14,7 +14,12 @@ class _FakeVlc extends VlcLauncher {
   @override
   Future<bool> available() async => true;
   @override
-  Future<PlayResult?> play(String url, {required String title, int startSecs = 0}) async => next;
+  Future<PlayResult?> play(
+    String url, {
+    required String title,
+    int startSecs = 0,
+    void Function(int, int)? onProgress,
+  }) async => next;
 }
 
 void main() {
