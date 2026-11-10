@@ -29,6 +29,10 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "isInstalled" -> result.success(vlcInstalled())
                     "isTv" -> result.success(isTv())
+                    "deviceName" -> result.success(
+                        android.provider.Settings.Global.getString(contentResolver, "device_name")
+                            ?: android.os.Build.MODEL
+                    )
                     "play" -> play(
                         call.argument<String>("url")!!,
                         call.argument<String>("title") ?: "",

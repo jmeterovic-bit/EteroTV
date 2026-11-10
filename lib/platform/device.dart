@@ -16,3 +16,14 @@ Future<bool> isTv() async {
 /// The UI uses it for the remote: no keyboard popping up while moving
 /// through a search field, and margins for TVs that cut the edges.
 bool runningOnTv = false;
+
+/// The name people gave this device (Android "device name"), to tell TVs apart.
+Future<String> deviceName() async {
+  if (Platform.isAndroid) {
+    try {
+      final n = await const MethodChannel('eterotv/vlc').invokeMethod<String>('deviceName');
+      if (n != null && n.trim().isNotEmpty) return n.trim();
+    } catch (_) {}
+  }
+  return Platform.localHostname;
+}

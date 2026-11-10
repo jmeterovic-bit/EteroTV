@@ -13,7 +13,7 @@ App propia (no copia de ninguna otra) para ver el catálogo de un servidor IPTV,
 ## Compilar
 - `flutter analyze` y `flutter test`. GitHub Actions los corre y compila el APK y el zip de Windows en cada PR; cada push a `main` publica un Release con el APK, el zip y el script para Fire TV.
 - La versión se cambia solo en `pubspec.yaml`, y se agrega su sección en `CHANGELOG.md`.
-- La conexión con Google necesita los secretos `GOOGLE_CLIENT_ID/SECRET` y `GOOGLE_TV_CLIENT_ID/SECRET` (ver `docs/CONFIGURAR-GOOGLE.md`); se pasan con `--dart-define`.
+- La conexión con Google necesita los secretos `GOOGLE_CLIENT_ID/SECRET` (cliente de escritorio; ver `docs/CONFIGURAR-GOOGLE.md`); se pasan con `--dart-define`. Las TV reciben la sesión desde el celular o el PC por la red local (`lib/sync/tv_link.dart`): Google rechaza `drive.appdata` en el inicio de sesión con código.
 
 ## Al terminar un cambio
 Agrega una fila a la bitácora de `docs/DECISIONES.md` y, si corresponde, a «Decisiones», «Rechazado» o «Pendiente».

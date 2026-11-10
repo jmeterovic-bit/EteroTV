@@ -8,28 +8,25 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
-/// OAuth clients, injected at build time (GitHub secrets):
-/// - "Desktop app" client: browser sign-in on phone and PC.
-/// - "TVs and Limited Input devices" client: code on screen for TV.
-/// For installed apps Google does not treat these secrets as confidential.
+/// OAuth client, injected at build time (GitHub secrets): a "Desktop app"
+/// client, for the browser sign-in on phone and PC. TVs get the session from
+/// one of those devices (tv_link.dart): Google refuses drive.appdata in its
+/// sign-in with a code for TVs ("Invalid device flow scope").
+/// For installed apps Google does not treat this secret as confidential.
 const _desktopId = String.fromEnvironment('GOOGLE_CLIENT_ID');
 const _desktopSecret = String.fromEnvironment('GOOGLE_CLIENT_SECRET');
-const _tvId = String.fromEnvironment('GOOGLE_TV_CLIENT_ID');
-const _tvSecret = String.fromEnvironment('GOOGLE_TV_CLIENT_SECRET');
 
 /// Only the app's hidden folder in the user's Drive: no access to anything else.
 const driveScope = 'https://www.googleapis.com/auth/drive.appdata';
 
 class OAuthClient {
   const OAuthClient(this.kind, this.id, this.secret);
-  final String kind; // 'desktop' or 'tv'
+  final String kind; // 'desktop' ('tv' in sessions from 0.4.0, never valid)
   final String id;
   final String secret;
   bool get configured => id.isNotEmpty;
 
   static const desktop = OAuthClient('desktop', _desktopId, _desktopSecret);
-  static const tv = OAuthClient('tv', _tvId, _tvSecret);
-  static OAuthClient byKind(String k) => k == 'tv' ? tv : desktop;
 }
 
 class GoogleAuthException implements Exception {
@@ -37,22 +34,6 @@ class GoogleAuthException implements Exception {
   final String message;
   @override
   String toString() => message;
-}
-
-/// What the TV shows: go to [url] on another device and type [userCode].
-class DeviceCode {
-  DeviceCode({
-    required this.deviceCode,
-    required this.userCode,
-    required this.url,
-    required this.interval,
-    required this.expiresAt,
-  });
-  final String deviceCode;
-  final String userCode;
-  final String url;
-  final Duration interval;
-  final DateTime expiresAt;
 }
 
 /// Where the refresh token is kept. Tests use a map.
@@ -75,7 +56,7 @@ class SecureTokenStore implements TokenStore {
 
 /// Google sign-in without Google libraries (Fire TV has no Google services):
 /// plain OAuth over HTTP. Phone and PC use the browser with a loopback
-/// redirect and PKCE; TVs use the device flow (a code shown on screen).
+/// redirect and PKCE; TVs receive the session from them.
 class GoogleAuth {
   GoogleAuth({TokenStore? store, http.Client? client})
     : store = store ?? SecureTokenStore(),
@@ -91,9 +72,7 @@ class GoogleAuth {
   String? _accessToken;
   DateTime _expiry = DateTime.fromMillisecondsSinceEpoch(0);
 
-  static bool get browserAvailable => OAuthClient.desktop.configured;
-  static bool get codeAvailable => OAuthClient.tv.configured;
-  static bool get configured => browserAvailable || codeAvailable;
+  static bool get configured => OAuthClient.desktop.configured;
 
   bool get signedIn => _refreshToken != null;
 
@@ -137,7 +116,7 @@ class GoogleAuth {
     final refresh = _refreshToken;
     if (refresh == null) throw GoogleAuthException('No has conectado Google en este dispositivo.');
     if (_accessToken != null && DateTime.now().isBefore(_expiry)) return _accessToken!;
-    final c = OAuthClient.byKind(_clientKind);
+    const c = OAuthClient.desktop;
     final r = await _http.post(
       Uri.parse(_tokenUrl),
       body: {'client_id': c.id, 'client_secret': c.secret, 'refresh_token': refresh, 'grant_type': 'refresh_token'},
@@ -240,68 +219,34 @@ class GoogleAuth {
     throw GoogleAuthException('Se cerró la ventana de inicio de sesión.');
   }
 
-  // ---- Code on screen (TV) ----
+  // ---- Passing the session to a TV (see tv_link.dart) ----
 
-  Future<DeviceCode> startDeviceFlow() async {
-    const c = OAuthClient.tv;
-    final r = await _http.post(
-      Uri.parse('https://oauth2.googleapis.com/device/code'),
-      body: {'client_id': c.id, 'scope': driveScope},
-    );
-    final m = _json(r);
-    if (r.statusCode != 200) {
-      // Google's own explanation helps tell a wrong client id from a scope problem.
-      final why = [m['error'] ?? r.statusCode, ?m['error_description']].join(': ');
-      throw GoogleAuthException('Google no dio un código ($why).');
-    }
-    return DeviceCode(
-      deviceCode: m['device_code'] as String,
-      userCode: m['user_code'] as String,
-      url: (m['verification_url'] ?? m['verification_uri'] ?? 'https://www.google.com/device') as String,
-      interval: Duration(seconds: (m['interval'] as num?)?.toInt() ?? 5),
-      expiresAt: DateTime.now().add(Duration(seconds: (m['expires_in'] as num?)?.toInt() ?? 1800)),
-    );
+  /// What a connected device hands to a TV: the permanent permission of the
+  /// desktop client, which works from any device.
+  Map<String, dynamic>? exportSession() {
+    final r = _refreshToken;
+    if (r == null) return null;
+    return {'refresh_token': r, 'client': _clientKind};
   }
 
-  /// Waits until the user approves [d] on another device. [cancelled] stops it.
-  Future<void> waitForDevice(DeviceCode d, {bool Function()? cancelled}) async {
-    const c = OAuthClient.tv;
-    var interval = d.interval;
-    while (DateTime.now().isBefore(d.expiresAt)) {
-      await Future<void>.delayed(interval);
-      if (cancelled?.call() ?? false) throw GoogleAuthException('Cancelado.');
-      http.Response r;
-      try {
-        r = await _http.post(
-          Uri.parse(_tokenUrl),
-          body: {
-            'client_id': c.id,
-            'client_secret': c.secret,
-            'device_code': d.deviceCode,
-            'grant_type': 'urn:ietf:params:oauth:grant-type:device_code',
-          },
-        );
-      } on SocketException {
-        continue;
-      }
-      final m = _json(r);
-      if (r.statusCode == 200) {
-        await _keep(m, c.kind);
-        return;
-      }
-      switch (m['error']) {
-        case 'authorization_pending':
-          continue;
-        case 'slow_down':
-          interval += const Duration(seconds: 5);
-          continue;
-        case 'access_denied':
-          throw GoogleAuthException('Se rechazó el permiso en Google.');
-        default:
-          throw GoogleAuthException('Google: ${m['error'] ?? r.statusCode}');
-      }
+  /// Keeps a session received from another device, after checking that
+  /// Google accepts it.
+  Future<void> adoptSession(Map<String, dynamic> session) async {
+    final refresh = session['refresh_token'];
+    if (refresh is! String || refresh.isEmpty) throw GoogleAuthException('La sesión recibida no sirve.');
+    final previous = (_refreshToken, _clientKind, _accessToken);
+    _refreshToken = refresh;
+    _clientKind = (session['client'] as String?) ?? 'desktop';
+    _accessToken = null;
+    try {
+      await accessToken();
+    } catch (e) {
+      _refreshToken = previous.$1;
+      _clientKind = previous.$2;
+      _accessToken = previous.$3;
+      rethrow;
     }
-    throw GoogleAuthException('El código venció. Pide uno nuevo.');
+    await store.write(jsonEncode({'refresh_token': _refreshToken, 'client': _clientKind}));
   }
 
   static Map<String, dynamic> _json(http.Response r) {

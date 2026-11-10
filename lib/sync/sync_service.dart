@@ -113,10 +113,9 @@ class SyncService extends ChangeNotifier {
     await syncNow();
   }
 
-  Future<DeviceCode> startDeviceFlow() => auth.startDeviceFlow();
-
-  Future<void> finishDeviceFlow(DeviceCode d, {bool Function()? cancelled}) async {
-    await auth.waitForDevice(d, cancelled: cancelled);
+  /// TV: keeps the session sent by a connected phone or PC, then syncs.
+  Future<void> adoptSession(Map<String, dynamic> session) async {
+    await auth.adoptSession(session);
     notifyListeners();
     await syncNow();
   }

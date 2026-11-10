@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.6.0
+- La TV se conecta a Google desde el celular o el PC: en la TV, «Conectar con Google» muestra un código de 6 números; en el celular o el PC ya conectado, Ajustes → Sincronización → «Conectar una TV» la busca en tu red, escribes el código y listo. Se hace una vez por TV. La sesión viaja cifrada y solo esa TV la puede abrir.
+- Se quitó el inicio de sesión con código de google.com/device: Google no permite la carpeta oculta de Drive con ese método («Invalid device flow scope»).
+- El celular y el PC también pueden conectarse así, desde otro equipo ya conectado.
+- El script para instalar en la TV espera hasta 90 s a que aceptes la depuración en el televisor.
+
 ## 0.5.1
 - TV: la pantalla de inicio (datos del proveedor o «Traer mi cuenta desde Google Drive») ahora se maneja con el control. Antes el teclado aparecía solo y las flechas quedaban atrapadas en el primer campo. Los campos de texto, incluido el del PIN, funcionan como los buscadores: OK abre el teclado y las flechas pasan al siguiente.
 
