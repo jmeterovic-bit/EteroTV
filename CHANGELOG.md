@@ -11,7 +11,7 @@
   - Barra con el control: ◀ ▶ recorren los botones y OK los usa; ▲ va a la línea de tiempo, donde ◀ ▶ mueven el video; Atrás oculta la barra. Con la barra oculta, ◀ ▶ mueven el video y OK pausa.
   - Ajustes → «Decodificar»: con el chip (normal), con el chip directo a la pantalla (más nítido, solo Android) o sin el chip. «Audio y subtítulos» muestra el códec, la resolución y cómo se decodifica, para comparar.
   - Un error de una pista que no impide ver el video (en la Bravia: «Could not open codec») ya no se muestra.
-- Siguiente episodio: el aviso aparece en los últimos 100 s (antes a los 90 %, unos 3 minutos antes de que terminara el capítulo). Lo visto sigue igual (90 % o menos de 3 min).
+- Siguiente episodio: el aviso es una tarjeta chica en la esquina, con un círculo que se vacía en 30 s (antes una ventana de 10 s), y aparece en los últimos 100 s (antes a los 90 %, unos 3 minutos antes de que terminara el capítulo). Lo visto sigue igual (90 % o menos de 3 min).
 - Al salir del reproductor ya no aparece el mensaje con el tiempo guardado (solo si el reproductor no dijo dónde quedaste).
 - Canales en vivo: «Ahora» y «Después» de la guía del proveedor, en la lista de canales y sobre el video.
 - Perfiles: en el celular y el PC se puede usar una imagen tuya como ícono (además de los dibujos). Llega a los otros aparatos con el perfil.

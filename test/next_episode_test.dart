@@ -13,7 +13,7 @@ void main() {
     durationSecs: 0,
   );
 
-  testWidgets('starts by itself after 10 s', (tester) async {
+  testWidgets('starts by itself after 30 s', (tester) async {
     bool? result;
     await tester.pumpWidget(
       MaterialApp(
@@ -26,10 +26,10 @@ void main() {
     await tester.tap(find.text('x'));
     await tester.pump();
     expect(find.text('Siguiente: T3 E4'), findsOneWidget);
-    expect(find.text('Empieza en 10 s'), findsOneWidget);
+    expect(find.text('30'), findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
-    expect(find.text('Empieza en 5 s'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 6));
+    expect(find.text('25'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 26));
     await tester.pumpAndSettle();
     expect(find.text('Siguiente: T3 E4'), findsNothing);
     expect(result, isTrue);
@@ -50,7 +50,7 @@ void main() {
     await tester.tap(find.text('Cancelar'));
     await tester.pumpAndSettle();
     expect(result, isFalse);
-    await tester.pump(const Duration(seconds: 11));
+    await tester.pump(const Duration(seconds: 31));
     expect(result, isFalse);
   });
 }
