@@ -249,7 +249,11 @@ class GoogleAuth {
       body: {'client_id': c.id, 'scope': driveScope},
     );
     final m = _json(r);
-    if (r.statusCode != 200) throw GoogleAuthException('Google no dio un código (${m['error'] ?? r.statusCode}).');
+    if (r.statusCode != 200) {
+      // Google's own explanation helps tell a wrong client id from a scope problem.
+      final why = [m['error'] ?? r.statusCode, ?m['error_description']].join(': ');
+      throw GoogleAuthException('Google no dio un código ($why).');
+    }
     return DeviceCode(
       deviceCode: m['device_code'] as String,
       userCode: m['user_code'] as String,
