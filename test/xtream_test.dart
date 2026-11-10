@@ -200,4 +200,15 @@ void main() {
     expect(next2?.title, 'Película');
     expect(parseShortEpg([]), isEmpty);
   });
+
+  test('quality from the channel name', () {
+    expect(qualityOf('ES| La 1 FHD'), Quality.fhd);
+    expect(qualityOf('HBO HD'), Quality.hd);
+    expect(qualityOf('Movistar 4K'), Quality.uhd);
+    expect(qualityOf('UK: BBC One SD'), Quality.sd);
+    expect(qualityOf('CA| TVA 720p'), Quality.hd);
+    expect(qualityOf('Discovery HDR 4K'), Quality.uhd);
+    expect(qualityOf('Shadow'), isNull, reason: 'no "hd" inside a word');
+    expect(qualityOf('Canal+'), isNull);
+  });
 }

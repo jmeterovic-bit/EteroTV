@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.1.1
+- TV: Atrás al salir del reproductor vuelve a donde estabas (por ejemplo «Canales»), no a Inicio.
+- Canales: la calidad que trae el nombre (4K, FHD, HD, SD) aparece como una marca de color, y arriba de la lista se puede elegir ver solo una («Todas · 4K · FHD · HD · SD»). También en Buscar, con «Canales» elegido.
+
 ## 1.1.0
 - Reproductor propio (prueba): EteroTV reproduce dentro de la app por defecto, en todos los aparatos. VLC, Just Player y MX Player siguen en Ajustes → Reproductor.
   - Usa el idioma de audio y subtítulos del perfil también en Android. Si el video no lo tiene, usa su pista original. No elige subtítulos forzados por su cuenta.

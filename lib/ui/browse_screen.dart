@@ -373,14 +373,7 @@ class ItemsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (kind == Kind.live) {
-      return FocusTraversalGroup(
-        child: ListView.builder(
-          itemCount: items.length,
-          itemBuilder: (_, i) => ChannelTile(item: items[i], autofocus: autofocus && i == 0),
-        ),
-      );
-    }
+    if (kind == Kind.live) return ChannelList(items: items, autofocus: autofocus);
     return FocusTraversalGroup(
       child: GridView.builder(
         padding: const EdgeInsets.all(16),
@@ -395,6 +388,102 @@ class ItemsList extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Channels, with «Todas · 4K · FHD · HD · SD» on top when the list has
+/// more than one quality (taken from the names).
+class ChannelList extends StatefulWidget {
+  const ChannelList({super.key, required this.items, this.autofocus = false});
+  final List<CatalogItem> items;
+  final bool autofocus;
+
+  @override
+  State<ChannelList> createState() => _ChannelListState();
+}
+
+class _ChannelListState extends State<ChannelList> {
+  Quality? _only;
+
+  @override
+  Widget build(BuildContext context) {
+    final present = {for (final it in widget.items) qualityOf(it.name)};
+    final filter = present.length > 1;
+    final only = filter && present.contains(_only) ? _only : null;
+    final items = only == null
+        ? widget.items
+        : [
+            for (final it in widget.items)
+              if (qualityOf(it.name) == only) it,
+          ];
+    return Column(
+      children: [
+        if (filter)
+          QualityChips(
+            selected: only,
+            available: [
+              for (final q in Quality.values)
+                if (present.contains(q)) q,
+            ],
+            onSelected: (q) => setState(() => _only = q),
+          ),
+        Expanded(
+          child: FocusTraversalGroup(
+            child: ListView.builder(
+              itemCount: items.length,
+              itemBuilder: (_, i) => ChannelTile(item: items[i], autofocus: widget.autofocus && i == 0),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// «Todas · 4K · FHD · HD · SD».
+class QualityChips extends StatelessWidget {
+  const QualityChips({super.key, required this.selected, required this.available, required this.onSelected});
+  final Quality? selected;
+  final List<Quality> available;
+  final ValueChanged<Quality?> onSelected;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(
+        spacing: 8,
+        children: [
+          ChoiceChip(label: Text(tr('Todas')), selected: selected == null, onSelected: (_) => onSelected(null)),
+          for (final q in available)
+            ChoiceChip(label: Text(q.label), selected: selected == q, onSelected: (_) => onSelected(q)),
+        ],
+      ),
+    ),
+  );
+}
+
+/// The quality written in a channel's name, as a small coloured tag.
+class QualityTag extends StatelessWidget {
+  const QualityTag(this.quality, {super.key});
+  final Quality quality;
+
+  static Color colorOf(Quality q) => switch (q) {
+    Quality.uhd => const Color(0xFF8E24AA),
+    Quality.fhd => const Color(0xFF1E88E5),
+    Quality.hd => const Color(0xFF43A047),
+    Quality.sd => const Color(0xFF757575),
+  };
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(color: colorOf(quality), borderRadius: BorderRadius.circular(4)),
+    child: Text(
+      quality.label,
+      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+    ),
+  );
 }
 
 class ChannelTile extends StatelessWidget {
@@ -421,10 +510,16 @@ class ChannelTile extends StatelessWidget {
         subtitle: EpgLine(channelId: item.id, number: item.number),
         onTap: play,
         onLongPress: () => toggleFavoriteWithNote(context, item),
-        trailing: IconButton(
-          tooltip: fav ? tr('Quitar de favoritos') : tr('Agregar a favoritos'),
-          icon: Icon(fav ? Icons.star : Icons.star_border, color: fav ? Colors.amber : null),
-          onPressed: () => context.read<AppState>().toggleFavorite(item),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (qualityOf(item.name) case final q?) QualityTag(q),
+            IconButton(
+              tooltip: fav ? tr('Quitar de favoritos') : tr('Agregar a favoritos'),
+              icon: Icon(fav ? Icons.star : Icons.star_border, color: fav ? Colors.amber : null),
+              onPressed: () => context.read<AppState>().toggleFavorite(item),
+            ),
+          ],
         ),
       ),
     );

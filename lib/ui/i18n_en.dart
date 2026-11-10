@@ -343,4 +343,5 @@ const en = <String, String>{
   'Lo nuevo': 'What\'s new',
   'NUEVA TEMPORADA': 'NEW SEASON',
   'NUEVO CAPÍTULO': 'NEW EPISODE',
+  'Todas': 'All',
 };
