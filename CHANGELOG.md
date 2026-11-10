@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.6.4
+- TV, filas (idea de Jose): desde una fila, arriba va a su «Ver todo»; otra vez arriba, al primer elemento de la fila de arriba. Bajar lleva al primer elemento de la fila de abajo. Al llegar arriba del todo queda en «Continuar» del destacado.
+- Arreglo: en la versión compilada (no en las pruebas), «Ver todo» no se reconocía como botón aparte de la fila, porque la marca usaba una etiqueta que solo existe en modo de desarrollo.
+
 ## 0.6.3
 - TV, navegación (probada con un catálogo grande, a 960×540 como una TV 1080p):
   - Dentro de una lista o cuadrícula, arriba va a la fila de arriba aunque esté fuera de pantalla; ya no salta a «Carpetas y búsqueda» ni a «Buscar».

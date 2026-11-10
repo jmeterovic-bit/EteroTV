@@ -140,8 +140,8 @@ class Shelf extends StatefulWidget {
 }
 
 class _ShelfState extends State<Shelf> {
-  /// «Ver todo» is reached with up/down only from the items right below it.
-  final _seeAll = FocusNode(debugLabel: tvAsideLabel);
+  /// «Ver todo»: the row's header for the remote (tv_focus.dart).
+  final _seeAll = TvAsideNode();
 
   @override
   void dispose() {
@@ -153,46 +153,48 @@ class _ShelfState extends State<Shelf> {
   Widget build(BuildContext context) {
     final Shelf(:title, :children, :height, :onSeeAll) = widget;
     if (children.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, onSeeAll == null ? 16 : 4, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ),
-              if (onSeeAll != null)
-                TextButton(
-                  focusNode: _seeAll,
-                  onPressed: onSeeAll,
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [Text('Ver todo'), Icon(Icons.chevron_right)],
+    return TvShelf(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, onSeeAll == null ? 16 : 4, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
-            ],
-          ),
-        ),
-        SizedBox(
-          height: height,
-          child: FocusTraversalGroup(
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: children.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 14),
-              itemBuilder: (_, i) => children[i],
+                if (onSeeAll != null)
+                  TextButton(
+                    focusNode: _seeAll,
+                    onPressed: onSeeAll,
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [Text('Ver todo'), Icon(Icons.chevron_right)],
+                    ),
+                  ),
+              ],
             ),
           ),
-        ),
-      ],
+          SizedBox(
+            height: height,
+            child: TvRow(
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: children.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 14),
+                itemBuilder: (_, i) => children[i],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
