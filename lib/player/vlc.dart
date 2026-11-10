@@ -29,8 +29,17 @@ abstract class VlcLauncher {
 
   Future<bool> available();
 
-  /// Completes when the user leaves VLC.
-  Future<PlayResult?> play(String url, {required String title, int startSecs = 0});
+  /// Completes when the user leaves VLC. [onProgress] gets (position,
+  /// length) in seconds while playing, where the player can tell (Windows).
+  Future<PlayResult?> play(
+    String url, {
+    required String title,
+    int startSecs = 0,
+    void Function(int positionSecs, int lengthSecs)? onProgress,
+  });
+
+  /// Closes the player opened by [play], where possible (Windows).
+  Future<void> stop() async {}
 }
 
 /// Android, Google TV and Fire TV: VLC returns the position itself
@@ -46,7 +55,12 @@ class AndroidVlc extends VlcLauncher {
   Future<bool> looksInstalled() async => await _ch.invokeMethod<bool>('isInstalled') ?? true;
 
   @override
-  Future<PlayResult?> play(String url, {required String title, int startSecs = 0}) async {
+  Future<PlayResult?> play(
+    String url, {
+    required String title,
+    int startSecs = 0,
+    void Function(int positionSecs, int lengthSecs)? onProgress,
+  }) async {
     try {
       final r = await _ch.invokeMapMethod<String, Object?>('play', {
         'url': url,
@@ -97,8 +111,20 @@ class DesktopVlc extends VlcLauncher {
   @override
   Future<bool> available() async => findExe() != null;
 
+  Process? _proc;
+
   @override
-  Future<PlayResult?> play(String url, {required String title, int startSecs = 0}) async {
+  Future<void> stop() async {
+    _proc?.kill();
+  }
+
+  @override
+  Future<PlayResult?> play(
+    String url, {
+    required String title,
+    int startSecs = 0,
+    void Function(int positionSecs, int lengthSecs)? onProgress,
+  }) async {
     final exe = findExe();
     if (exe == null) throw VlcMissing();
     final port = await _freePort();
@@ -115,6 +141,7 @@ class DesktopVlc extends VlcLauncher {
       '--meta-title=$title',
       url,
     ]);
+    _proc = proc;
     // Do not let VLC block on full pipes.
     proc.stdout.drain<void>();
     proc.stderr.drain<void>();
@@ -130,12 +157,19 @@ class DesktopVlc extends VlcLauncher {
       if (exited) break;
       try {
         final r = await client.get(status, headers: {'Authorization': auth}).timeout(const Duration(seconds: 3));
-        if (r.statusCode == 200) tracker.add(jsonDecode(r.body) as Map<String, dynamic>);
+        if (r.statusCode == 200) {
+          tracker.add(jsonDecode(r.body) as Map<String, dynamic>);
+          final t = tracker.result();
+          if (onProgress != null && t?.positionSecs != null && (t?.durationSecs ?? 0) > 0) {
+            onProgress(t!.positionSecs!, t.durationSecs!);
+          }
+        }
       } catch (_) {
         // VLC still starting, or closing: try again next round.
       }
     }
     client.close();
+    if (identical(_proc, proc)) _proc = null;
     return tracker.result();
   }
 

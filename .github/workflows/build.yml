@@ -51,8 +51,16 @@ jobs:
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_TV_CLIENT_ID: ${{ secrets.GOOGLE_TV_CLIENT_ID }}
+          GOOGLE_TV_CLIENT_SECRET: ${{ secrets.GOOGLE_TV_CLIENT_SECRET }}
         run: |
-          flutter build apk --release --build-number=${{ github.run_number }}
+          flutter build apk --release --build-number=${{ github.run_number }} \
+            --dart-define=GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+            --dart-define=GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET" \
+            --dart-define=GOOGLE_TV_CLIENT_ID="$GOOGLE_TV_CLIENT_ID" \
+            --dart-define=GOOGLE_TV_CLIENT_SECRET="$GOOGLE_TV_CLIENT_SECRET"
           ver=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
           cp build/app/outputs/flutter-apk/app-release.apk "eterotv-$ver.apk"
       - uses: actions/upload-artifact@v6
@@ -74,7 +82,17 @@ jobs:
           cache: true
       - name: Build Windows app
         shell: bash
-        run: flutter build windows --release --build-number=${{ github.run_number }}
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_TV_CLIENT_ID: ${{ secrets.GOOGLE_TV_CLIENT_ID }}
+          GOOGLE_TV_CLIENT_SECRET: ${{ secrets.GOOGLE_TV_CLIENT_SECRET }}
+        run: |
+          flutter build windows --release --build-number=${{ github.run_number }} \
+            --dart-define=GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+            --dart-define=GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET" \
+            --dart-define=GOOGLE_TV_CLIENT_ID="$GOOGLE_TV_CLIENT_ID" \
+            --dart-define=GOOGLE_TV_CLIENT_SECRET="$GOOGLE_TV_CLIENT_SECRET"
       - name: Zip
         shell: pwsh
         run: |

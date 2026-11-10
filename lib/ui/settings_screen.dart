@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../iptv/xtream.dart';
 import '../state/app_state.dart';
+import 'google_sync.dart';
 import 'pin.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -107,6 +108,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: Text(_vlc == null ? 'Buscando VLC…' : (_vlc! ? 'VLC encontrado' : 'VLC no está instalado')),
           ),
           const Divider(),
+          const SyncSection(),
+          const Divider(),
           const ListTile(
             title: Text('Carpetas con PIN', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
@@ -174,7 +177,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
-          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '0.3.1'),
+          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '0.4.0'),
         ],
       ),
     );

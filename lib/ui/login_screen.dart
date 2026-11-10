@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../iptv/xtream.dart';
 import '../state/app_state.dart';
+import '../sync/google_auth.dart';
+import '../sync/sync_service.dart';
+import 'google_sync.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,6 +36,28 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// A device already set up shares the IPTV account through Drive.
+  Future<void> _fromGoogle() async {
+    final sync = context.read<SyncService>();
+    final state = context.read<AppState>();
+    if (!sync.signedIn && !await connectGoogle(context)) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    await sync.syncNow();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (state.creds == null) {
+        _error =
+            sync.error ??
+            'Tu Drive todavía no tiene la cuenta IPTV. Conecta Google en Ajustes del dispositivo donde ya la '
+                'escribiste, o escríbela aquí.';
+      }
+    });
   }
 
   @override
@@ -99,9 +124,29 @@ class _LoginScreenState extends State<LoginScreen> {
                           : const Text('Conectar'),
                     ),
                   ),
+                  if (GoogleAuth.configured) ...[
+                    const SizedBox(height: 24),
+                    const Row(
+                      children: [
+                        Expanded(child: Divider()),
+                        Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('o')),
+                        Expanded(child: Divider()),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.cloud_download_outlined),
+                      label: const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text('Traer mi cuenta desde Google Drive'),
+                      ),
+                      onPressed: _busy ? null : _fromGoogle,
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   Text(
-                    'Los datos se guardan cifrados en este dispositivo. Más adelante se compartirán con tus otros dispositivos a través de tu Google Drive.',
+                    'Los datos se guardan cifrados en este dispositivo y, si conectas Google, en una carpeta oculta '
+                    'de tu Drive para tus otros dispositivos.',
                     style: Theme.of(context).textTheme.bodySmall,
                     textAlign: TextAlign.center,
                   ),

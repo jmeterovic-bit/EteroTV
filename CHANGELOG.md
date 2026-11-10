@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.4.0
+- Sincronización con Google Drive (etapa 2): favoritos, avance, lo visto, la cuenta IPTV, el PIN y las carpetas protegidas quedan iguales en el celular, el PC y la TV. Se guardan en una carpeta oculta de tu Drive que solo EteroTV puede leer.
+- Conectar con Google: en el celular y el PC con el navegador; en Google TV y Fire TV con un código que se escribe en google.com/device desde otro equipo.
+- En un dispositivo nuevo, «Traer mi cuenta desde Google Drive» evita escribir la URL, el usuario y la contraseña.
+- «Siguiente episodio»: al terminar un episodio aparece el siguiente con una cuenta de 10 s, «Cancelar» y «Ver ahora». En Windows aparece al empezar los créditos, encima de VLC.
+
 ## 0.3.1
 - Android: VLC se abre directo en su reproductor, la única pantalla de VLC que devuelve hasta dónde viste (antes pasaba por su pantalla de inicio, que no devuelve nada). Si VLC igual no avisa, el mensaje dice cómo respondió.
 - Los archivos del Release llevan la versión en el nombre (`eterotv-0.3.1.apk`), para no instalar uno viejo por error.

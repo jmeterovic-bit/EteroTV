@@ -23,7 +23,12 @@ class _NoVlc extends VlcLauncher {
   @override
   Future<bool> available() async => false;
   @override
-  Future<PlayResult?> play(String url, {required String title, int startSecs = 0}) async => null;
+  Future<PlayResult?> play(
+    String url, {
+    required String title,
+    int startSecs = 0,
+    void Function(int, int)? onProgress,
+  }) async => null;
 }
 
 Future<void> settle(WidgetTester tester) async {

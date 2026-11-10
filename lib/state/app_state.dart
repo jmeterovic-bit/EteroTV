@@ -79,7 +79,9 @@ class AppState extends ChangeNotifier {
       info = await XtreamClient(c).account();
     }
     await _storage.write(key: _credsKey, value: jsonEncode(c.toJson()));
+    await prefs.setInt(_credsAtKey, _now);
     creds = c;
+    _changed();
     notifyListeners();
     unawaited(refreshCatalog());
     return info;
@@ -394,11 +396,128 @@ class AppState extends ChangeNotifier {
   Future<void> _save(LibraryEntry e) async {
     _library[e.key] = e;
     await db.saveEntry(e);
+    _changed();
   }
 
-  Future<void> _remove(String key) async {
+  Future<void> _remove(String key, {int? at}) async {
     _library.remove(key);
     await db.deleteEntry(key);
+    // Remember the deletion, so other devices drop it too (and do not bring it back).
+    final dead = _deleted..[key] = at ?? _now;
+    await prefs.setString(_deletedKey, jsonEncode(dead));
+    _changed();
+  }
+
+  // ---- Sync (stage 2) ----
+
+  static const _deletedKey = 'deletedKeys';
+  static const _credsAtKey = 'credsUpdatedAt';
+  static const _pinAtKey = 'pinUpdatedAt';
+  static const _lockedAtKey = 'lockedUpdatedAt';
+  static const snapshotSchema = 1;
+
+  /// Called after every local change to the library or the shared settings
+  /// (the sync service uploads a few seconds later).
+  VoidCallback? onLocalChange;
+  bool _merging = false;
+
+  void _changed() {
+    if (!_merging) onLocalChange?.call();
+  }
+
+  Map<String, int> get _deleted {
+    try {
+      return (jsonDecode(prefs.getString(_deletedKey) ?? '{}') as Map<String, dynamic>).map(
+        (k, v) => MapEntry(k, (v as num).toInt()),
+      );
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Everything this device shares: "my library", the IPTV account, the PIN
+  /// and the protected folders. The catalog is never shared.
+  Map<String, dynamic> exportSnapshot() => {
+    'schema': snapshotSchema,
+    'app': 'eterotv',
+    'device': deviceId,
+    'library': [for (final e in _library.values) e.toRow()],
+    'deleted': _deleted,
+    'creds': {'value': creds?.toJson(), 'at': prefs.getInt(_credsAtKey) ?? 0},
+    'pin': {'value': _pin, 'at': prefs.getInt(_pinAtKey) ?? 0},
+    'locked': {'value': _locked.toList()..sort(), 'at': prefs.getInt(_lockedAtKey) ?? 0},
+  };
+
+  /// Takes what is newer in another device's snapshot. Returns how many
+  /// things changed here.
+  Future<int> mergeSnapshot(Map<String, dynamic> data) async {
+    if (data['schema'] != snapshotSchema) return 0; // written by a newer version
+    var n = 0;
+    _merging = true;
+    try {
+      // Deletions first, so a deleted favourite is not brought back.
+      final dead = _deleted;
+      var deadChanged = false;
+      for (final MapEntry(:key, :value) in ((data['deleted'] as Map?) ?? const {}).entries) {
+        final at = (value as num).toInt();
+        if (at <= (dead[key] ?? 0)) continue;
+        dead[key as String] = at;
+        deadChanged = true;
+        final local = _library[key];
+        if (local != null && local.updatedAt <= at) {
+          _library.remove(key);
+          await db.deleteEntry(key);
+          n++;
+        }
+      }
+      if (deadChanged) await prefs.setString(_deletedKey, jsonEncode(dead));
+      for (final raw in (data['library'] as List?) ?? const []) {
+        final e = LibraryEntry.fromRow(Map<String, Object?>.from(raw as Map));
+        if (e.updatedAt <= (dead[e.key] ?? 0)) continue;
+        final local = _library[e.key];
+        if (local != null && local.updatedAt >= e.updatedAt) continue;
+        _library[e.key] = e;
+        await db.saveEntry(e);
+        n++;
+      }
+      // Shared settings: the newest wins as a whole.
+      int at(String k) => ((data[k] as Map?)?['at'] as num?)?.toInt() ?? 0;
+      Object? value(String k) => (data[k] as Map?)?['value'];
+      final remoteCreds = value('creds') is Map
+          ? Credentials.fromJson(Map<String, dynamic>.from(value('creds')! as Map))
+          : null;
+      if (at('creds') > (prefs.getInt(_credsAtKey) ?? 0) && remoteCreds != null) {
+        final c = remoteCreds;
+        await _storage.write(key: _credsKey, value: jsonEncode(c.toJson()));
+        await prefs.setInt(_credsAtKey, at('creds'));
+        final first = creds == null;
+        creds = c;
+        n++;
+        if (first || lastRefresh == null) unawaited(refreshCatalog());
+      }
+      if (at('pin') > (prefs.getInt(_pinAtKey) ?? 0)) {
+        final pin = value('pin') as String?;
+        if (pin == null) {
+          await _storage.delete(key: _pinKey);
+        } else {
+          await _storage.write(key: _pinKey, value: pin);
+        }
+        _pin = pin;
+        await prefs.setInt(_pinAtKey, at('pin'));
+        n++;
+      }
+      if (at('locked') > (prefs.getInt(_lockedAtKey) ?? 0)) {
+        _locked = {for (final f in (value('locked') as List? ?? const [])) f as String};
+        await prefs.setStringList(_lockedKey, _locked.toList()..sort());
+        await prefs.setInt(_lockedAtKey, at('locked'));
+        await _refreshHidden();
+        n++;
+      }
+    } finally {
+      _merging = false;
+    }
+    if (n > 0) notifyListeners();
+    return n;
   }
 
   // ---- Playing ----
@@ -446,6 +565,52 @@ class AppState extends ChangeNotifier {
     return _play(e, url);
   }
 
+  // ---- Next episode ----
+
+  LibraryEntry? _upNext;
+
+  /// Windows: set when the credits of an episode start, while VLC plays.
+  final ValueNotifier<LibraryEntry?> nearEnd = ValueNotifier(null);
+
+  /// The episode that was just finished, once (for "Siguiente episodio").
+  LibraryEntry? takeUpNext() {
+    final e = _upNext;
+    _upNext = null;
+    return e;
+  }
+
+  /// Closes VLC (Windows), e.g. to start the next episode from the credits.
+  Future<void> stopPlayer() => vlc.stop();
+
+  /// The episode after [e] in its series (next season included), or null.
+  Future<(CatalogItem, Episode)?> nextAfter(LibraryEntry e) async {
+    if (e.kind != Kind.episode || e.seriesId.isEmpty) return null;
+    final x = client;
+    if (x == null) return null;
+    try {
+      final info = await x.seriesInfo(e.seriesId).timeout(const Duration(seconds: 10));
+      final all = [for (final k in (info.seasons.keys.toList()..sort())) ...info.seasons[k]!];
+      final i = all.indexWhere((ep) => ep.id == e.id);
+      if (i < 0 || i + 1 >= all.length) return null;
+      final series =
+          await db.item(Kind.series, e.seriesId) ??
+          CatalogItem(
+            kind: Kind.series,
+            id: e.seriesId,
+            name: e.seriesName,
+            categoryId: '',
+            icon: e.icon,
+            tmdbId: e.tmdbId,
+            year: e.year,
+          );
+      return (series, all[i + 1]);
+    } catch (_) {
+      return null;
+    } finally {
+      x.close();
+    }
+  }
+
   /// Plays in VLC and saves where the user stopped. Returns a short note for
   /// the user about what was saved.
   Future<String?> _play(LibraryEntry e, String url) async {
@@ -468,7 +633,22 @@ class AppState extends ChangeNotifier {
     await _save(e);
     notifyListeners();
 
-    final r = await vlc.play(url, title: e.title, startSecs: start);
+    _upNext = null;
+    var nearEndFired = false;
+    final r = await vlc.play(
+      url,
+      title: e.title,
+      startSecs: start,
+      onProgress: e.kind != Kind.episode
+          ? null
+          : (pos, len) {
+              // Windows: credits reached while VLC is still playing.
+              if (!nearEndFired && isWatched(pos, len)) {
+                nearEndFired = true;
+                nearEnd.value = e;
+              }
+            },
+    );
     // VLC did not report: keep what we had and say so.
     if (r == null || r.positionSecs == null) {
       final info = r == null || r.info.isEmpty ? '' : ' (${r.info})';
@@ -480,6 +660,7 @@ class AppState extends ChangeNotifier {
       ..device = deviceId;
     await _save(e);
     notifyListeners();
+    if (e.watched && e.kind == Kind.episode) _upNext = e;
     if (e.watched) return 'Marcado como visto.';
     return e.durationSecs > 0
         ? 'Guardado: vas en ${formatTime(e.positionSecs)} de ${formatTime(e.durationSecs)}.'
@@ -546,6 +727,8 @@ class AppState extends ChangeNotifier {
     assert(validPin(pin));
     await _storage.write(key: _pinKey, value: pin);
     _pin = pin;
+    await prefs.setInt(_pinAtKey, _now);
+    _changed();
     notifyListeners();
   }
 
@@ -557,6 +740,8 @@ class AppState extends ChangeNotifier {
     protect ? _locked.add(k) : _locked.remove(k);
     if (protect) _unlocked.remove(k);
     await prefs.setStringList(_lockedKey, _locked.toList()..sort());
+    await prefs.setInt(_lockedAtKey, _now);
+    _changed();
     await _refreshHidden();
     notifyListeners();
   }
