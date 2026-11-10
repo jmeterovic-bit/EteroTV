@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart' hide Category;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -443,10 +444,15 @@ class AppState extends ChangeNotifier {
     'device': deviceId,
     'library': [for (final e in _library.values) e.toRow()],
     'deleted': _deleted,
-    'creds': {'value': creds?.toJson(), 'at': prefs.getInt(_credsAtKey) ?? 0},
-    'pin': {'value': _pin, 'at': prefs.getInt(_pinAtKey) ?? 0},
-    'locked': {'value': _locked.toList()..sort(), 'at': prefs.getInt(_lockedAtKey) ?? 0},
+    'creds': {'value': creds?.toJson(), 'at': _settingAt(_credsAtKey, creds != null)},
+    'pin': {'value': _pin, 'at': _settingAt(_pinAtKey, _pin != null)},
+    'locked': {'value': _locked.toList()..sort(), 'at': _settingAt(_lockedAtKey, _locked.isNotEmpty)},
   };
+
+  /// When a shared setting was last changed. Settings saved before 0.4.0
+  /// have no date: they count as the oldest (1), so they still reach a new
+  /// device but any later change wins.
+  int _settingAt(String key, bool hasValue) => prefs.getInt(key) ?? (hasValue ? 1 : 0);
 
   /// Takes what is newer in another device's snapshot. Returns how many
   /// things changed here.
@@ -486,16 +492,18 @@ class AppState extends ChangeNotifier {
       final remoteCreds = value('creds') is Map
           ? Credentials.fromJson(Map<String, dynamic>.from(value('creds')! as Map))
           : null;
-      if (at('creds') > (prefs.getInt(_credsAtKey) ?? 0) && remoteCreds != null) {
+      // A device with nothing yet takes the other one's even without a date
+      // (devices still on 0.4.0-0.6.0 send 0 for settings from before 0.4.0).
+      if (remoteCreds != null && (at('creds') > (prefs.getInt(_credsAtKey) ?? 0) || creds == null)) {
         final c = remoteCreds;
         await _storage.write(key: _credsKey, value: jsonEncode(c.toJson()));
-        await prefs.setInt(_credsAtKey, at('creds'));
+        await prefs.setInt(_credsAtKey, max(at('creds'), 1));
         final first = creds == null;
         creds = c;
         n++;
         if (first || lastRefresh == null) unawaited(refreshCatalog());
       }
-      if (at('pin') > (prefs.getInt(_pinAtKey) ?? 0)) {
+      if (at('pin') > (prefs.getInt(_pinAtKey) ?? 0) || (_pin == null && value('pin') is String)) {
         final pin = value('pin') as String?;
         if (pin == null) {
           await _storage.delete(key: _pinKey);
@@ -503,13 +511,14 @@ class AppState extends ChangeNotifier {
           await _storage.write(key: _pinKey, value: pin);
         }
         _pin = pin;
-        await prefs.setInt(_pinAtKey, at('pin'));
+        await prefs.setInt(_pinAtKey, max(at('pin'), 1));
         n++;
       }
-      if (at('locked') > (prefs.getInt(_lockedAtKey) ?? 0)) {
+      if (at('locked') > (prefs.getInt(_lockedAtKey) ?? 0) ||
+          (_locked.isEmpty && (value('locked') as List? ?? const []).isNotEmpty)) {
         _locked = {for (final f in (value('locked') as List? ?? const [])) f as String};
         await prefs.setStringList(_lockedKey, _locked.toList()..sort());
-        await prefs.setInt(_lockedAtKey, at('locked'));
+        await prefs.setInt(_lockedAtKey, max(at('locked'), 1));
         await _refreshHidden();
         n++;
       }
