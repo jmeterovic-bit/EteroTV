@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+import '../ui/i18n.dart';
+
 /// What the user types once: server URL, user name and password.
 class Credentials {
   Credentials({required String server, required this.username, required this.password})
@@ -195,30 +197,30 @@ class XtreamClient {
       res = await _http.get(_api(params)).timeout(const Duration(seconds: 60));
     } on HandshakeException catch (e) {
       throw XtreamException(
-        'El servidor no usa https en ese puerto. Prueba con http:// al inicio de la URL.',
+        tr('El servidor no usa https en ese puerto. Prueba con http:// al inicio de la URL.'),
         tlsMismatch: e.toString().contains('WRONG_VERSION_NUMBER'),
       );
     } on TimeoutException {
-      throw XtreamException('El servidor no respondió. Revisa la URL y el puerto.');
+      throw XtreamException(tr('El servidor no respondió. Revisa la URL y el puerto.'));
     } on SocketException {
-      throw XtreamException('No se encontró el servidor. Revisa la URL, el puerto y tu conexión a internet.');
+      throw XtreamException(tr('No se encontró el servidor. Revisa la URL, el puerto y tu conexión a internet.'));
     } catch (e) {
-      throw XtreamException('No se pudo conectar con el servidor ($e)');
+      throw XtreamException(tr('No se pudo conectar con el servidor ({0})', [e]));
     }
     if (res.statusCode == 401 || res.statusCode == 403) {
-      throw XtreamException('El servidor rechazó el usuario o la contraseña');
+      throw XtreamException(tr('El servidor rechazó el usuario o la contraseña'));
     }
     if (res.statusCode != 200) {
-      throw XtreamException('El servidor respondió ${res.statusCode}');
+      throw XtreamException(tr('El servidor respondió {0}', [res.statusCode]));
     }
     return parseJson(res.body);
   }
 
   Future<AccountInfo> account() async {
     final j = await _get(const {});
-    if (j is! Map<String, dynamic>) throw XtreamException('Respuesta inesperada del servidor');
+    if (j is! Map<String, dynamic>) throw XtreamException(tr('Respuesta inesperada del servidor'));
     final info = AccountInfo.fromJson(j);
-    if (!info.active) throw XtreamException('Usuario o contraseña incorrectos');
+    if (!info.active) throw XtreamException(tr('Usuario o contraseña incorrectos'));
     return info;
   }
 
@@ -267,7 +269,7 @@ dynamic parseJson(String body) {
   try {
     return jsonDecode(body);
   } catch (_) {
-    throw XtreamException('El servidor no devolvió datos válidos');
+    throw XtreamException(tr('El servidor no devolvió datos válidos'));
   }
 }
 

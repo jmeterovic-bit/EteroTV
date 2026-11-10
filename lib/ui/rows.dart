@@ -6,6 +6,7 @@ import '../state/app_state.dart';
 import 'browse_screen.dart';
 import 'cards.dart';
 import 'widgets.dart';
+import 'i18n.dart';
 
 const posterRowHeight = 236.0;
 const channelRowHeight = 134.0;
@@ -38,7 +39,7 @@ class _CategoryRowState extends State<CategoryRow> {
       return ListTile(
         leading: const Icon(Icons.lock, color: Colors.white54),
         title: Text('${widget.titlePrefix}${widget.category.name}'),
-        subtitle: const Text('Protegida con PIN'),
+        subtitle: Text(tr('Protegida con PIN')),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ItemsScreen(category: widget.category))),
       );
     }
@@ -97,7 +98,7 @@ class _KindTabState extends State<KindTab> {
           TextButton.icon(
             onPressed: _folders,
             icon: const Icon(Icons.folder_open),
-            label: const Text('Carpetas y búsqueda'),
+            label: Text(tr('Carpetas y búsqueda')),
           ),
         ],
       ),
@@ -113,24 +114,24 @@ class _KindTabState extends State<KindTab> {
                     padding: const EdgeInsets.all(24),
                     child: Text(
                       s.refreshing
-                          ? '${s.refreshStep} Las categorías aparecen aquí cuando termine.'
-                          : 'No hay categorías. Prueba «Actualizar la lista ahora» en Ajustes.',
+                          ? tr('{0} Las categorías aparecen aquí cuando termine.', [s.refreshStep])
+                          : tr('No hay categorías. Prueba «Actualizar la lista ahora» en Ajustes.'),
                     ),
                   );
                 }
                 if (i == 0) {
                   return Shelf(
-                    title: 'Seguir viendo',
+                    title: tr('Seguir viendo'),
                     height: h,
-                    onSeeAll: () => _open(Category(kind, inProgressFolder, 'Seguir viendo')),
+                    onSeeAll: () => _open(Category(kind, inProgressFolder, tr('Seguir viendo'))),
                     children: [for (final it in started) card(it)],
                   );
                 }
                 if (i == 1) {
                   return Shelf(
-                    title: 'Favoritos',
+                    title: tr('Favoritos'),
                     height: h,
-                    onSeeAll: () => _open(Category(kind, favoritesFolder, 'Favoritos')),
+                    onSeeAll: () => _open(Category(kind, favoritesFolder, tr('Favoritos'))),
                     children: [for (final it in fav) card(it)],
                   );
                 }

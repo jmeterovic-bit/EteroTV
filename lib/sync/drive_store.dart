@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'google_auth.dart';
+import '../ui/i18n.dart';
 
 class RemoteFile {
   const RemoteFile(this.id, this.name);
@@ -37,7 +38,7 @@ class DriveStore implements RemoteStore {
 
   void _check(http.Response r) {
     if (r.statusCode >= 200 && r.statusCode < 300) return;
-    throw DriveException('Google Drive respondió ${r.statusCode}.');
+    throw DriveException(tr('Google Drive respondió {0}.', [r.statusCode]));
   }
 
   @override

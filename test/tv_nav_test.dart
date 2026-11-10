@@ -12,6 +12,7 @@ import 'package:eterotv/sync/sync_service.dart';
 import 'package:eterotv/ui/browse_screen.dart';
 import 'package:eterotv/ui/cards.dart';
 import 'package:eterotv/ui/home_screen.dart';
+import 'package:eterotv/ui/i18n.dart';
 import 'package:eterotv/ui/theme.dart';
 import 'package:eterotv/ui/tv_focus.dart';
 import 'package:flutter/material.dart';
@@ -258,6 +259,49 @@ void main() {
     expect(label(), startsWith('Canal'));
   });
 
+  testWidgets('Buscar desde el menú: el cursor queda listo y se elige dónde buscar', (tester) async {
+    runningOnTv = true;
+    addTearDown(() => runningOnTv = false);
+    await open(tester, const HomeScreen());
+    await tester.tap(find.text('Buscar').last);
+    await wait(tester);
+    expect(focus().context!.findAncestorWidgetOfExactType<TextField>(), isNotNull, reason: label());
+    expect(tester.widget<TextField>(find.byType(TextField).last).readOnly, isFalse, reason: 'listo para escribir');
+    expect(find.text('Películas'), findsOneWidget, reason: 'sin texto no hay opciones (solo el menú)');
+    await tester.enterText(find.byType(TextField).last, 'título m1');
+    await wait(tester);
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await wait(tester);
+    await press(tester, LogicalKeyboardKey.arrowDown, 'abajo a las opciones');
+    for (var i = 0; i < 3 && label() != 'Todo'; i++) {
+      await press(tester, LogicalKeyboardKey.arrowLeft, 'a Todo');
+    }
+    expect(label(), 'Todo');
+    await press(tester, LogicalKeyboardKey.arrowRight, 'a Series');
+    expect(label(), 'Series');
+    await press(tester, LogicalKeyboardKey.select, 'solo series');
+    await wait(tester);
+    expect(find.textContaining('Título m1'), findsNothing, reason: 'solo series');
+    await press(tester, LogicalKeyboardKey.arrowRight, 'a Películas');
+    await press(tester, LogicalKeyboardKey.select, 'solo películas');
+    await wait(tester);
+    expect(find.textContaining('Título m1'), findsWidgets);
+  });
+
+  testWidgets('Inicio en inglés y en francés', (tester) async {
+    addTearDown(() => uiLang = UiLang.es);
+    uiLang = UiLang.en;
+    await open(tester, const HomeScreen());
+    expect(find.text('Home'), findsWidgets);
+    expect(find.text('Continue watching'), findsOneWidget);
+    expect(find.text('My list'), findsOneWidget);
+    uiLang = UiLang.fr;
+    await tester.pumpWidget(const SizedBox());
+    await open(tester, const HomeScreen());
+    expect(find.text('Accueil'), findsWidgets);
+    expect(find.text('Ma liste'), findsOneWidget);
+  });
+
   testWidgets('Series: subir pasa por cada fila antes de «Carpetas y búsqueda»', (tester) async {
     await open(tester, const HomeScreen());
     // To the side menu, down to Series, and back into the page.
@@ -303,4 +347,27 @@ void main() {
     }
     expect(label(), first);
   });
+
+  // Holding the arrow or pressing it quickly (Jose, 2026-11-10: the focus
+  // got lost on Inicio).
+  for (final gap in [16, 50, 100]) {
+    testWidgets('Inicio: subir rápido ($gap ms)', (tester) async {
+      await open(tester, const HomeScreen());
+      for (var i = 0; i < 18; i++) {
+        await press(tester, LogicalKeyboardKey.arrowDown, 'abajo $i');
+      }
+      final ups = <String>[];
+      for (var i = 0; i < 40; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 2)));
+        await tester.pump(Duration(milliseconds: gap));
+        expect(focus(), isNot(isA<FocusScopeNode>()), reason: 'arriba $i: nada tiene el foco');
+        expect((Offset.zero & tv).contains(focus().rect.center), isTrue, reason: 'arriba $i: fuera (${focus().rect})');
+        ups.add(label());
+      }
+      await wait(tester);
+      expect(focus(), isNot(isA<FocusScopeNode>()));
+      expect(focus().context!.findAncestorWidgetOfExactType<HeroBanner>(), isNotNull, reason: '$ups');
+    });
+  }
 }

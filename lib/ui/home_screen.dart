@@ -13,6 +13,7 @@ import 'settings_screen.dart';
 import 'theme.dart';
 import 'tv_focus.dart';
 import 'widgets.dart';
+import 'i18n.dart';
 
 /// Main frame: bottom bar on phones, side rail on wide screens and TV.
 class HomeScreen extends StatefulWidget {
@@ -29,6 +30,20 @@ class _HomeScreenState extends State<HomeScreen> {
   /// One focus scope per tab: it remembers the last item (for Atrás and for
   /// coming back from the side menu), and the arrows can leave it.
   final _scopes = List.generate(5, (i) => TvRegionScope(debugLabel: 'tab $i'));
+
+  /// Choosing «Buscar» puts the cursor in its field (Jose, 2026-11-10).
+  final _typeSearch = ChangeNotifier();
+  static const _searchTab = 4;
+
+  void _select(int i) {
+    setState(() => _tab = i);
+    if (i == _searchTab) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+        if (mounted) _typeSearch.notifyListeners();
+      });
+    }
+  }
 
   /// Folders opened with the PIN lock again after an hour away from the app.
   static const relockAfter = Duration(hours: 1);
@@ -50,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _life.dispose();
+    _typeSearch.dispose();
     for (final s in _scopes) {
       s.dispose();
     }
@@ -77,17 +93,16 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     _lastBack = now;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Pulsa Atrás otra vez para salir.'), duration: Duration(seconds: 2)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(tr('Pulsa Atrás otra vez para salir.')), duration: Duration(seconds: 2)));
   }
 
-  static const _dest = [
-    (Icons.home_outlined, Icons.home, 'Inicio'),
-    (Icons.video_library_outlined, Icons.video_library, 'Series'),
-    (Icons.movie_outlined, Icons.movie, 'Películas'),
-    (Icons.live_tv_outlined, Icons.live_tv, 'Canales'),
-    (Icons.search, Icons.search, 'Buscar'),
+  static List<(IconData, IconData, String)> get _dest => [
+    (Icons.home_outlined, Icons.home, tr('Inicio')),
+    (Icons.video_library_outlined, Icons.video_library, tr('Series')),
+    (Icons.movie_outlined, Icons.movie, tr('Películas')),
+    (Icons.live_tv_outlined, Icons.live_tv, tr('Canales')),
+    (Icons.search, Icons.search, tr('Buscar')),
   ];
 
   @override
@@ -98,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
       const KindTab(kind: Kind.series),
       const KindTab(kind: Kind.movie),
       const KindTab(kind: Kind.live),
-      const SearchScreen(autofocus: false),
+      SearchScreen(autofocus: false, typeNow: _typeSearch),
     ];
     final body = IndexedStack(
       index: _tab,
@@ -120,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: NavigationRail(
             backgroundColor: const Color(0xFF101010),
             selectedIndex: _tab,
-            onDestinationSelected: (i) => setState(() => _tab = i),
+            onDestinationSelected: _select,
             labelType: NavigationRailLabelType.all,
             indicatorColor: accent.withValues(alpha: 0.25),
             leading: Padding(
@@ -130,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
             trailing: Padding(
               padding: const EdgeInsets.only(top: 12),
               child: IconButton(
-                tooltip: 'Ajustes',
+                tooltip: tr('Ajustes'),
                 icon: const Icon(Icons.settings_outlined),
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
               ),
@@ -165,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
             indicatorColor: accent.withValues(alpha: 0.25),
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             selectedIndex: _tab,
-            onDestinationSelected: (i) => setState(() => _tab = i),
+            onDestinationSelected: _select,
             destinations: [
               for (final d in _dest)
                 NavigationDestination(
@@ -219,13 +234,13 @@ class _HomeTabState extends State<HomeTab> {
         title: Row(
           children: [
             if (!wide) ...[Image.asset('assets/icon.png', width: 32, height: 32), const SizedBox(width: 10)],
-            const Text('Inicio', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(tr('Inicio'), style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
         actions: [
           if (!wide)
             IconButton(
-              tooltip: 'Ajustes',
+              tooltip: tr('Ajustes'),
               icon: const Icon(Icons.settings_outlined),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
             ),
@@ -238,54 +253,55 @@ class _HomeTabState extends State<HomeTab> {
             ListTile(
               leading: const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
               title: Text(s.refreshStep),
-              subtitle: const Text('La primera vez puede tardar un par de minutos.'),
+              subtitle: Text(tr('La primera vez puede tardar un par de minutos.')),
             ),
           if (s.error != null)
             ListTile(
               leading: const Icon(Icons.error_outline, color: Colors.redAccent),
               title: Text(s.error!),
-              trailing: TextButton(onPressed: s.refreshCatalog, child: const Text('Reintentar')),
+              trailing: TextButton(onPressed: s.refreshCatalog, child: Text(tr('Reintentar'))),
             ),
           if (s.lost.isNotEmpty)
             Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: ListTile(
                 leading: const Icon(Icons.find_replace),
-                title: Text('${s.lost.length} favoritos o progresos no aparecen en la lista nueva'),
-                subtitle: const Text('Te sugiero los más parecidos para reemplazarlos.'),
+                title: Text(tr('{0} favoritos o progresos no aparecen en la lista nueva', [s.lost.length])),
+                subtitle: Text(tr('Te sugiero los más parecidos para reemplazarlos.')),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LostScreen())),
               ),
             ),
           if (cont.isNotEmpty) HeroBanner(entry: cont.first),
           Shelf(
-            title: 'Continuar viendo',
+            title: tr('Continuar viendo'),
             height: 200,
             children: [for (final e in cont) ContinueCard(entry: e)],
           ),
           Shelf(
-            title: 'Mi lista',
+            title: tr('Mi lista'),
             height: posterRowHeight,
             children: [for (final e in s.myList) PosterCard(item: catalogItemOf(e))],
           ),
           Shelf(
-            title: 'Canales favoritos',
+            title: tr('Canales favoritos'),
             height: channelRowHeight,
             children: [for (final e in s.favorites(Kind.live)) ChannelCard(item: catalogItemOf(e))],
           ),
           if (cont.isEmpty && s.myList.isEmpty && s.favorites(Kind.live).isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(16),
               child: Text(
-                'Marca series, películas y canales con la estrella para tenerlos aquí. '
-                'Lo que dejes a medias aparece en «Continuar viendo».',
+                tr(
+                  'Marca series, películas y canales con la estrella para tenerlos aquí. Lo que dejes a medias aparece en «Continuar viendo».',
+                ),
               ),
             ),
           for (final c in _rows.where((c) => !s.isLocked(c)))
             CategoryRow(
               key: ValueKey('${c.kind.name}:${c.id}@${s.lastRefresh}'),
               category: c,
-              titlePrefix: c.kind == Kind.series ? 'Series · ' : 'Películas · ',
+              titlePrefix: c.kind == Kind.series ? tr('Series · ') : tr('Películas · '),
             ),
         ],
       ),

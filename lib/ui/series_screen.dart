@@ -8,6 +8,7 @@ import 'play.dart';
 import 'remote.dart';
 import 'theme.dart';
 import 'widgets.dart';
+import 'i18n.dart';
 
 /// The last episode played if unfinished; otherwise the first one not
 /// seen after it (or from the start, if nothing was played here).
@@ -80,14 +81,14 @@ class _SeriesScreenState extends State<SeriesScreen> {
         title: Text(widget.item.name),
         actions: [
           IconButton(
-            tooltip: fav ? 'Quitar de favoritos' : 'Agregar a favoritos',
+            tooltip: fav ? tr('Quitar de favoritos') : tr('Agregar a favoritos'),
             icon: Icon(fav ? Icons.star : Icons.star_border, color: fav ? Colors.amber : null),
             onPressed: () => s.toggleFavorite(widget.item),
           ),
         ],
       ),
       body: _error != null
-          ? Center(child: Text('No se pudo cargar la serie: $_error'))
+          ? Center(child: Text(tr('No se pudo cargar la serie: {0}', [_error])))
           : info == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -103,13 +104,13 @@ class _SeriesScreenState extends State<SeriesScreen> {
                       FilledButton.icon(
                         autofocus: true,
                         icon: const Icon(Icons.play_arrow),
-                        label: Text('Ver T${next.season} E${next.number}'),
+                        label: Text(tr('Ver T{0} E{1}', [next.season, next.number])),
                         onPressed: () => playWithChecks(context, (st) => st.playEpisode(widget.item, next)),
                       ),
                     if (s.isInProgress(widget.item))
                       OutlinedButton.icon(
                         icon: const Icon(Icons.close),
-                        label: const Text('Quitar de Seguir viendo'),
+                        label: Text(tr('Quitar de Seguir viendo')),
                         onPressed: () => s.removeSeriesFromContinue(widget.item.id),
                       ),
                   ],
@@ -121,7 +122,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
                     children: [
                       for (final n in seasons)
                         ChoiceChip(
-                          label: Text('Temporada $n'),
+                          label: Text(tr('Temporada {0}', [n])),
                           selected: n == _season,
                           onSelected: (_) => setState(() => _season = n),
                         ),
@@ -150,7 +151,7 @@ class _SeasonWatched extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: TextButton.icon(
         icon: Icon(all ? Icons.remove_done : Icons.done_all),
-        label: Text(all ? 'Marcar temporada como no vista' : 'Marcar temporada como vista'),
+        label: Text(all ? tr('Marcar temporada como no vista') : tr('Marcar temporada como vista')),
         onPressed: () async {
           for (final ep in episodes) {
             await s.setEpisodeWatched(series, ep, !all);
@@ -182,7 +183,7 @@ class _EpisodeTile extends StatelessWidget {
       onMenu: toggle,
       child: ListTile(
         leading: CircleAvatar(child: Text('${ep.number}')),
-        title: Text(ep.title.isEmpty ? 'Episodio ${ep.number}' : ep.title),
+        title: Text(ep.title.isEmpty ? tr('Episodio {0}', [ep.number]) : ep.title),
         subtitle: started
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,13 +196,13 @@ class _EpisodeTile extends StatelessWidget {
             : Text(
                 [
                   if (dur > 0) formatTime(dur),
-                  if (watched) 'Visto' else if (e != null && e.lastPlayed > 0) 'Empezado',
+                  if (watched) tr('Visto') else if (e != null && e.lastPlayed > 0) tr('Empezado'),
                 ].join(' · '),
               ),
         onTap: play,
         onLongPress: toggle,
         trailing: IconButton(
-          tooltip: watched ? 'Marcar como no visto' : 'Marcar como visto',
+          tooltip: watched ? tr('Marcar como no visto') : tr('Marcar como visto'),
           icon: Icon(
             watched ? Icons.check_circle : Icons.check_circle_outline,
             color: watched ? Colors.greenAccent : Colors.white38,

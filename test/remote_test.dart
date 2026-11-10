@@ -47,6 +47,43 @@ void main() {
       expect(taps, 0);
     });
 
+    testWidgets('the OK still held does not press the menu\'s first option', (tester) async {
+      var picked = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => RemoteMenu(
+                onSelect: () {},
+                onMenu: () => showModalBottomSheet<void>(
+                  context: context,
+                  builder: (c) => ListTile(autofocus: true, title: const Text('Quitar'), onTap: () => picked++),
+                ),
+                child: InkWell(autofocus: true, onTap: () {}, child: const Text('Póster')),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.select);
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
+      expect(find.text('Quitar'), findsOneWidget);
+      for (var i = 0; i < 3; i++) {
+        await tester.sendKeyRepeatEvent(LogicalKeyboardKey.select);
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.select);
+      await tester.pumpAndSettle();
+      expect(picked, 0);
+      expect(find.text('Quitar'), findsOneWidget);
+      // A new OK chooses it.
+      await tester.sendKeyEvent(LogicalKeyboardKey.select);
+      await tester.pumpAndSettle();
+      expect(picked, 1);
+    });
+
     testWidgets('the menu key opens the menu', (tester) async {
       await pump(tester);
       await tester.sendKeyEvent(LogicalKeyboardKey.contextMenu);

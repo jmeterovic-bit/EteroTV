@@ -17,4 +17,11 @@ void main() {
     expect(a.name, 'Just Player');
     expect(VlcMissing(a.name).toString(), 'Just Player no está instalado');
   });
+
+  test('VLC on Windows gets the languages chosen', () {
+    expect(vlcTrackArgs(TrackLang.original, TrackLang.none), ['--sub-language=none']);
+    expect(vlcTrackArgs(TrackLang.es, TrackLang.en), ['--audio-language=es,spa', '--sub-language=en,eng']);
+    expect(vlcTrackArgs(TrackLang.fr, TrackLang.fr), ['--audio-language=fr,fra,fre', '--sub-language=fr,fra,fre']);
+    expect(TrackLang.fromName('nada', TrackLang.original), TrackLang.original);
+  });
 }

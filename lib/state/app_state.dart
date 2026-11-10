@@ -13,6 +13,7 @@ import '../iptv/xtream.dart';
 import '../logic/progress.dart';
 import '../logic/rematch.dart';
 import '../player/vlc.dart';
+import '../ui/i18n.dart';
 
 class AppState extends ChangeNotifier {
   AppState({required this.db, required this.prefs, required this.deviceId, VlcLauncher? vlc})
@@ -32,6 +33,32 @@ class AppState extends ChangeNotifier {
   AndroidPlayer? get androidPlayer {
     final v = vlc;
     return v is AndroidVlc ? v.player : null;
+  }
+
+  static const _uiLangKey = 'uiLang';
+  static const _audioKey = 'audioLang';
+  static const _subsKey = 'subLang';
+
+  /// The app's language (this device). Changing it rebuilds the whole app.
+  UiLang get uiLanguage => uiLang;
+  Future<void> setUiLanguage(UiLang l) async {
+    uiLang = l;
+    await prefs.setString(_uiLangKey, l.name);
+    notifyListeners();
+  }
+
+  TrackLang get audioLang => vlc.audioLang;
+  TrackLang get subLang => vlc.subLang;
+  Future<void> setAudioLang(TrackLang l) async {
+    vlc.audioLang = l;
+    await prefs.setString(_audioKey, l.name);
+    notifyListeners();
+  }
+
+  Future<void> setSubLang(TrackLang l) async {
+    vlc.subLang = l;
+    await prefs.setString(_subsKey, l.name);
+    notifyListeners();
   }
 
   Future<void> setAndroidPlayer(AndroidPlayer p) async {
@@ -74,6 +101,10 @@ class AppState extends ChangeNotifier {
     await _loadLocks();
     final v = vlc;
     if (v is AndroidVlc) v.player = AndroidPlayer.fromName(prefs.getString(_playerKey));
+    uiLang = UiLang.fromName(prefs.getString(_uiLangKey));
+    v
+      ..audioLang = TrackLang.fromName(prefs.getString(_audioKey), TrackLang.original)
+      ..subLang = TrackLang.fromName(prefs.getString(_subsKey), TrackLang.none);
     notifyListeners();
     final last = lastRefresh;
     if (creds != null && (last == null || DateTime.now().difference(last) > refreshEvery)) {
@@ -132,9 +163,9 @@ class AppState extends ChangeNotifier {
     try {
       for (final kind in [Kind.live, Kind.movie, Kind.series]) {
         refreshStep = switch (kind) {
-          Kind.live => 'Descargando canales…',
-          Kind.movie => 'Descargando películas…',
-          _ => 'Descargando series…',
+          Kind.live => tr('Descargando canales…'),
+          Kind.movie => tr('Descargando películas…'),
+          _ => tr('Descargando series…'),
         };
         notifyListeners();
         // Download and parse in another isolate: a big list must not freeze the screen.
@@ -553,8 +584,10 @@ class AppState extends ChangeNotifier {
     try {
       final a = await account().timeout(const Duration(seconds: 6));
       if (a != null && a.full) {
-        return 'Tu proveedor permite ${a.maxConnections} reproducciones a la vez y ya hay '
-            '${a.activeConnections} en uso. Cierra VLC en otro dispositivo o espera un momento.';
+        return tr(
+          'Tu proveedor permite {0} reproducciones a la vez y ya hay {1} en uso. Cierra VLC en otro dispositivo o espera un momento.',
+          [a.maxConnections, a.activeConnections],
+        );
       }
     } catch (_) {
       // No answer: let VLC try anyway.
@@ -678,7 +711,7 @@ class AppState extends ChangeNotifier {
     // VLC did not report: keep what we had and say so.
     if (r == null || r.positionSecs == null) {
       final info = r == null || r.info.isEmpty ? '' : ' (${r.info})';
-      return '${vlc.name} no avisó hasta dónde viste; el avance no se guardó.$info';
+      return tr('{0} no avisó hasta dónde viste; el avance no se guardó.{1}', [vlc.name, info]);
     }
     applyResult(e, r);
     e
@@ -687,10 +720,10 @@ class AppState extends ChangeNotifier {
     await _save(e);
     notifyListeners();
     if (e.watched && e.kind == Kind.episode) _upNext = e;
-    if (e.watched) return 'Marcado como visto.';
+    if (e.watched) return tr('Marcado como visto.');
     return e.durationSecs > 0
-        ? 'Guardado: vas en ${formatTime(e.positionSecs)} de ${formatTime(e.durationSecs)}.'
-        : 'Guardado: vas en ${formatTime(e.positionSecs)}.';
+        ? tr('Guardado: vas en {0} de {1}.', [formatTime(e.positionSecs), formatTime(e.durationSecs)])
+        : tr('Guardado: vas en {0}.', [formatTime(e.positionSecs)]);
   }
 
   // ---- Folders with PIN ----

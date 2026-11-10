@@ -263,6 +263,15 @@ bool tvFocusInDirection(FocusNode current, TraversalDirection direction, {bool r
   return true;
 }
 
+/// After a move, if the item with the focus went away (its row was rebuilt
+/// while the list jumped), put the focus back on what shows.
+void _keepFocus() {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final f = FocusManager.instance.primaryFocus;
+    if (f == null || f is FocusScopeNode) tvRecoverFocus(f as FocusScopeNode?);
+  });
+}
+
 /// Nothing more that way among what the list has built: lists only build
 /// what is near the screen, so scroll it a bit and look again.
 bool _scrollOn(FocusNode current, ScrollableState? along, TraversalDirection direction, bool retry) {
@@ -317,8 +326,19 @@ bool tvKeyHandler(KeyEvent e) {
   return tvRecoverFocus(f as FocusScopeNode?);
 }
 
+/// When the last move was a moment ago (an arrow held down or pressed
+/// quickly), lists jump instead of sliding: a slide still under way left the
+/// focus off screen, and the next arrow then looked for rows from there and
+/// lost it.
+DateTime _lastReveal = DateTime.fromMillisecondsSinceEpoch(0);
+const _fastGap = Duration(milliseconds: 300);
+
 /// Scrolls [n] into view: rows keep it at their edge, lists center it.
 void _reveal(FocusNode n, TraversalDirection direction) {
+  final now = DateTime.now();
+  final fast = now.difference(_lastReveal) < _fastGap;
+  _lastReveal = now;
+  _keepFocus();
   // Each list shows what holds the item: the row shows the card, and the
   // page shows the whole row.
   var ctx = n.context!;
@@ -334,7 +354,7 @@ void _reveal(FocusNode n, TraversalDirection direction) {
           : direction == TraversalDirection.left
           ? ScrollPositionAlignmentPolicy.keepVisibleAtStart
           : ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-      duration: const Duration(milliseconds: 150),
+      duration: fast ? Duration.zero : const Duration(milliseconds: 150),
       curve: Curves.easeOut,
     );
     ctx = s.context;

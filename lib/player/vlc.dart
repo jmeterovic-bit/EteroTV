@@ -6,6 +6,8 @@ import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
+import '../ui/i18n.dart';
+
 /// Where the user stopped. Null fields mean VLC did not tell us.
 class PlayResult {
   PlayResult({this.positionSecs, this.durationSecs, this.info = ''});
@@ -21,7 +23,7 @@ class VlcMissing implements Exception {
   VlcMissing([this.player = 'VLC']);
   final String player;
   @override
-  String toString() => '$player no está instalado';
+  String toString() => tr('{0} no está instalado', [player]);
 }
 
 /// The player used on Android. VLC everywhere, except on a device where VLC
@@ -39,9 +41,42 @@ enum AndroidPlayer {
   static AndroidPlayer fromName(String? n) => values.firstWhere((p) => p.name == n, orElse: () => vlc);
 }
 
+/// The language to ask for in a video's audio or subtitles. [original]
+/// (audio) and [none] (subtitles) leave it to the video.
+enum TrackLang {
+  original,
+  none,
+  es,
+  en,
+  fr;
+
+  static TrackLang fromName(String? n, TrackLang fallback) =>
+      values.firstWhere((l) => l.name == n, orElse: () => fallback);
+
+  /// The codes VLC matches against the tracks (two and three letters).
+  String? get vlcCodes => switch (this) {
+    es => 'es,spa',
+    en => 'en,eng',
+    fr => 'fr,fra,fre',
+    _ => null,
+  };
+}
+
+/// VLC's options for the languages chosen. Without a track in that
+/// language, VLC plays the video's own one (the default track).
+List<String> vlcTrackArgs(TrackLang audio, TrackLang subs) => [
+  if (audio.vlcCodes case final c?) '--audio-language=$c',
+  if (subs.vlcCodes case final c?) '--sub-language=$c' else if (subs == TrackLang.none) '--sub-language=none',
+];
+
 /// Opens a video in VLC (the app has no player of its own) and finds out
 /// where the user stopped.
 abstract class VlcLauncher {
+  /// Ajustes → Idioma (this device). Only VLC on Windows takes them from us:
+  /// the Android players have their own setting.
+  TrackLang audioLang = TrackLang.original;
+  TrackLang subLang = TrackLang.none;
+
   static VlcLauncher forPlatform() => Platform.isAndroid ? AndroidVlc() : DesktopVlc();
 
   /// The player's name, for messages.
@@ -165,6 +200,7 @@ class DesktopVlc extends VlcLauncher {
       '--no-qt-recentplay', // the URL carries the IPTV password: keep it out of "Recent"
       '--no-qt-privacy-ask',
       if (startSecs > 0) '--start-time=$startSecs',
+      ...vlcTrackArgs(audioLang, subLang),
       '--meta-title=$title',
       url,
     ]);

@@ -7,6 +7,7 @@ import '../sync/google_auth.dart';
 import '../sync/sync_service.dart';
 import 'google_sync.dart';
 import 'remote.dart';
+import 'i18n.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -55,8 +56,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (state.creds == null) {
         _error =
             sync.error ??
-            'Tu Drive todavía no tiene la cuenta IPTV. Conecta Google en Ajustes del dispositivo donde ya la '
-                'escribiste, o escríbela aquí.';
+            tr(
+              'Tu Drive todavía no tiene la cuenta IPTV. Conecta Google en Ajustes del dispositivo donde ya la escribiste, o escríbela aquí.',
+            );
       }
     });
   }
@@ -75,16 +77,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   Text('EteroTV', style: Theme.of(context).textTheme.displaySmall, textAlign: TextAlign.center),
                   const SizedBox(height: 8),
-                  const Text('Escribe los datos que te dio tu proveedor de IPTV.', textAlign: TextAlign.center),
+                  Text(tr('Escribe los datos que te dio tu proveedor de IPTV.'), textAlign: TextAlign.center),
                   const SizedBox(height: 24),
                   RemoteTextField(
                     controller: _server,
                     autofocus: true,
                     keyboardType: TextInputType.url,
                     textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'URL del servidor',
-                      hintText: 'http://servidor.com:8080',
+                    decoration: InputDecoration(
+                      labelText: tr('URL del servidor'),
+                      hintText: tr('http://servidor.com:8080'),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -93,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _user,
                     autofillHints: const [AutofillHints.username],
                     textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(labelText: 'Usuario', border: OutlineInputBorder()),
+                    decoration: InputDecoration(labelText: tr('Usuario'), border: OutlineInputBorder()),
                   ),
                   const SizedBox(height: 12),
                   RemoteTextField(
@@ -102,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     autofillHints: const [AutofillHints.password],
                     onSubmitted: (_) => _connect(),
                     decoration: InputDecoration(
-                      labelText: 'Contraseña',
+                      labelText: tr('Contraseña'),
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(_show ? Icons.visibility_off : Icons.visibility),
@@ -122,7 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       padding: const EdgeInsets.all(12),
                       child: _busy
                           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Text('Conectar'),
+                          : Text(tr('Conectar')),
                     ),
                   ),
                   if (GoogleAuth.configured) ...[
@@ -137,17 +139,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 16),
                     OutlinedButton.icon(
                       icon: const Icon(Icons.cloud_download_outlined),
-                      label: const Padding(
+                      label: Padding(
                         padding: EdgeInsets.all(12),
-                        child: Text('Traer mi cuenta desde Google Drive'),
+                        child: Text(tr('Traer mi cuenta desde Google Drive')),
                       ),
                       onPressed: _busy ? null : _fromGoogle,
                     ),
                   ],
                   const SizedBox(height: 16),
                   Text(
-                    'Los datos se guardan cifrados en este dispositivo y, si conectas Google, en una carpeta oculta '
-                    'de tu Drive para tus otros dispositivos.',
+                    tr(
+                      'Los datos se guardan cifrados en este dispositivo y, si conectas Google, en una carpeta oculta de tu Drive para tus otros dispositivos.',
+                    ),
                     style: Theme.of(context).textTheme.bodySmall,
                     textAlign: TextAlign.center,
                   ),

@@ -1,5 +1,14 @@
 # Cambios
 
+## 0.8.0
+- Idioma de la app: español, inglés o francés (Ajustes → Idioma, solo en ese aparato).
+- Idioma de audio y subtítulos:
+  - Windows (VLC): se eligen en Ajustes → Idioma. Si el video no tiene ese idioma, VLC usa la pista del video (normalmente la original). «Sin subtítulos» no muestra ninguno, tampoco los forzados.
+  - Android: VLC, Just Player y MX Player no aceptan el idioma desde otra app. Ajustes → Idioma muestra los pasos para dejarlo elegido en el reproductor de ese aparato.
+- Buscar desde el menú izquierdo deja el cursor en la barra y abre el teclado. Al escribir aparecen «Todo», «Series», «Películas» y «Canales» para elegir dónde buscar.
+- Mantener OK sobre «Seguir viendo» (y en cualquier póster): el menú ya no elige solo «Ver ficha» con el OK que sigue apretado. Por eso no se podía llegar a «Quitar de Seguir viendo».
+- TV, Inicio: al mantener la flecha o apretarla rápido, la lista salta en vez de deslizarse, y el foco ya no queda fuera de la pantalla.
+
 ## 0.7.0
 - Ajustes → Reproductor → «Reproducir con»: VLC (normal), Just Player o MX Player, solo en ese aparato. Para la Bravia, donde VLC se cuelga con cualquier video (también fuera de EteroTV). Just Player es gratis, está en la tienda de Google TV y también devuelve hasta dónde viste.
 - TV, filas (idea de Jose): desde una fila, arriba va a su «Ver todo»; otra vez arriba, al primer elemento de la fila de arriba. Bajar lleva al primer elemento de la fila de abajo. Al llegar arriba del todo queda en «Continuar» del destacado.

@@ -1,4 +1,5 @@
 import '../iptv/xtream.dart';
+import '../ui/i18n.dart';
 
 /// After a list refresh the provider may give a channel, movie or series a
 /// new id. These helpers find the closest items by name (and duration) so
@@ -84,25 +85,25 @@ class Candidate {
 Candidate scoreCandidate(LostItem lost, CatalogItem c, {int candidateDuration = 0}) {
   final reasons = <String>[];
   if (lost.tmdbId.isNotEmpty && lost.tmdbId == c.tmdbId) {
-    return Candidate(c, 1, ['mismo ID de TMDB'], durationSecs: candidateDuration);
+    return Candidate(c, 1, [tr('mismo ID de TMDB')], durationSecs: candidateDuration);
   }
   if (lost.kind == Kind.live && lost.epgId.isNotEmpty && lost.epgId == c.epgId) {
-    return Candidate(c, 0.95, ['mismo canal de la guía'], durationSecs: candidateDuration);
+    return Candidate(c, 0.95, [tr('mismo canal de la guía')], durationSecs: candidateDuration);
   }
   var score = nameSimilarity(lost.name, c.name) * 0.8;
-  if (score >= 0.75) reasons.add('nombre casi igual');
+  if (score >= 0.75) reasons.add(tr('nombre casi igual'));
   if (lost.year.isNotEmpty && lost.year == c.year) {
     score += 0.05;
-    reasons.add('mismo año');
+    reasons.add(tr('mismo año'));
   }
   if (lost.durationSecs > 0 && candidateDuration > 0) {
     final diff = (lost.durationSecs - candidateDuration).abs();
     if (diff <= 120) {
       score += 0.15;
-      reasons.add('misma duración');
+      reasons.add(tr('misma duración'));
     } else if (diff > 600) {
       score -= 0.2;
-      reasons.add('duración distinta');
+      reasons.add(tr('duración distinta'));
     }
   }
   return Candidate(c, score.clamp(0, 1).toDouble(), reasons, durationSecs: candidateDuration);
