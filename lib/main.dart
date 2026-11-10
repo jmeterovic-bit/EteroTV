@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +13,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:uuid/uuid.dart';
 
 import 'data/database.dart';
+import 'player/own_player.dart';
 import 'platform/device.dart';
 import 'state/app_state.dart';
 import 'sync/sync_service.dart';
@@ -25,6 +27,7 @@ import 'ui/tv_focus.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
   if (Platform.isWindows || Platform.isLinux) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
@@ -68,6 +71,7 @@ class EteroApp extends StatelessWidget {
       // A new language builds every screen again (the texts are read when
       // they are built).
       key: ValueKey(lang),
+      navigatorKey: navigatorKeyFor(lang),
       locale: Locale(lang.name),
       supportedLocales: [for (final l in UiLang.values) Locale(l.name)],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,

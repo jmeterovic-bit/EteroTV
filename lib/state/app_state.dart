@@ -13,17 +13,49 @@ import '../data/profiles.dart';
 import '../iptv/xtream.dart';
 import '../logic/progress.dart';
 import '../logic/rematch.dart';
+import '../player/own_player.dart';
 import '../player/vlc.dart';
 import '../ui/i18n.dart';
 
 class AppState extends ChangeNotifier {
-  AppState({required this.db, required this.prefs, required this.deviceId, VlcLauncher? vlc})
-    : vlc = vlc ?? VlcLauncher.forPlatform();
+  AppState({required this.db, required this.prefs, required this.deviceId, VlcLauncher? vlc, VlcLauncher? own})
+    : vlc = vlc ?? VlcLauncher.forPlatform(),
+      own = own ?? OwnPlayer();
 
   final AppDatabase db;
   final SharedPreferences prefs;
   final String deviceId;
+
+  /// The outside player: VLC, or on Android Just Player / MX Player.
   final VlcLauncher vlc;
+
+  /// EteroTV's own player (1.1.0), the default.
+  final VlcLauncher own;
+
+  static const _ownKey = 'ownPlayer';
+  static const _hwKey = 'hwDecoding';
+
+  /// This device plays with EteroTV's own player (not synced).
+  bool get useOwnPlayer => prefs.getBool(_ownKey) ?? true;
+
+  /// The player in use on this device.
+  VlcLauncher get player => useOwnPlayer ? own : vlc;
+
+  Future<void> setUseOwnPlayer(bool v) async {
+    await prefs.setBool(_ownKey, v);
+    notifyListeners();
+  }
+
+  /// Own player: let the TV's or PC's chip decode the video. Off is slower
+  /// but helps where the picture fails.
+  bool get hardwareDecoding => prefs.getBool(_hwKey) ?? true;
+
+  Future<void> setHardwareDecoding(bool v) async {
+    await prefs.setBool(_hwKey, v);
+    final o = own;
+    if (o is OwnPlayer) o.hardwareDecoding = v;
+    notifyListeners();
+  }
 
   static const _storage = FlutterSecureStorage();
   static const _credsKey = 'iptv_credentials';
@@ -108,9 +140,11 @@ class AppState extends ChangeNotifier {
   void _applyProfile() {
     final p = profile;
     uiLang = UiLang.fromName(p.lang);
-    vlc
-      ..audioLang = TrackLang.fromName(p.audio, TrackLang.original)
-      ..subLang = TrackLang.fromName(p.subs, TrackLang.none);
+    for (final v in [vlc, own]) {
+      v
+        ..audioLang = TrackLang.fromName(p.audio, TrackLang.original)
+        ..subLang = TrackLang.fromName(p.subs, TrackLang.none);
+    }
   }
 
   Future<void> _editProfile(void Function(Profile) edit, [String? id]) async {
@@ -192,6 +226,7 @@ class AppState extends ChangeNotifier {
     if (v is! AndroidVlc) return;
     v.player = p;
     await prefs.setString(_playerKey, p.name);
+    await prefs.setBool(_ownKey, false);
     notifyListeners();
   }
 
@@ -231,6 +266,8 @@ class AppState extends ChangeNotifier {
     await _loadLocks();
     final v = vlc;
     if (v is AndroidVlc) v.player = AndroidPlayer.fromName(prefs.getString(_playerKey));
+    final o = own;
+    if (o is OwnPlayer) o.hardwareDecoding = hardwareDecoding;
     _loadProfiles();
     notifyListeners();
     final last = lastRefresh;
@@ -769,7 +806,7 @@ class AppState extends ChangeNotifier {
       ..device = deviceId;
     await _save(e);
     notifyListeners();
-    await vlc.play(x.liveUrl(ch.id), title: ch.name);
+    await player.play(x.liveUrl(ch.id), title: ch.name);
     x.close();
   }
 
@@ -804,7 +841,7 @@ class AppState extends ChangeNotifier {
   }
 
   /// Closes VLC (Windows), e.g. to start the next episode from the credits.
-  Future<void> stopPlayer() => vlc.stop();
+  Future<void> stopPlayer() => player.stop();
 
   /// The episode after [e] in its series (next season included), or null.
   Future<(CatalogItem, Episode)?> nextAfter(LibraryEntry e) async {
@@ -859,7 +896,8 @@ class AppState extends ChangeNotifier {
 
     _upNext = null;
     var nearEndFired = false;
-    final r = await vlc.play(
+    final pl = player;
+    final r = await pl.play(
       url,
       title: e.title,
       startSecs: start,
@@ -876,7 +914,7 @@ class AppState extends ChangeNotifier {
     // VLC did not report: keep what we had and say so.
     if (r == null || r.positionSecs == null) {
       final info = r == null || r.info.isEmpty ? '' : ' (${r.info})';
-      return tr('{0} no avisó hasta dónde viste; el avance no se guardó.{1}', [vlc.name, info]);
+      return tr('{0} no avisó hasta dónde viste; el avance no se guardó.{1}', [pl.name, info]);
     }
     applyResult(e, r);
     e

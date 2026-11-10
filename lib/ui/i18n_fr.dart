@@ -304,4 +304,29 @@ const fr = <String, String>{
       'Ses favoris, ce qu’il regardait et ce qu’il a vu sont supprimés, sur tous tes appareils.',
   '¿Eliminar «{0}»?': 'Supprimer « {0} » ?',
   '¿Quién va a ver?': 'Qui regarde ?',
+  'Imágenes': 'Images',
+  'No se pudo leer esa imagen.': 'Impossible de lire cette image.',
+  'Usar una imagen tuya': 'Utiliser ta propre image',
+  'Se recorta en cuadrado y llega a tus otros aparatos con el perfil.':
+      'Elle est recadrée en carré et arrive sur tes autres appareils avec le profil.',
+  'EteroTV (propio)': 'EteroTV (intégré)',
+  'Solo en este aparato. EteroTV es el normal; VLC, Just Player o MX Player son alternativas (tienen que estar instalados). Todos guardan hasta dónde viste.': 'Sur cet appareil seulement. EteroTV est celui par défaut ; VLC, Just Player ou MX Player sont des alternatives (ils doivent être installés). Tous enregistrent où tu t\'es arrêté.',
+  'Solo en este aparato. EteroTV es el normal; VLC es la alternativa (tiene que estar instalado).':
+      'Sur cet appareil seulement. EteroTV est celui par défaut ; VLC est l\'alternative (il doit être installé).',
+  'Decodificar con el chip del aparato': 'Décoder avec la puce de l\'appareil',
+  'Más fluido. Apágalo si la imagen se ve negra, verde o se corta (vale para el próximo video).':
+      'Plus fluide. Désactive-le si l\'image est noire, verte ou saccadée (s\'applique à la prochaine vidéo).',
+  'Pista {0}': 'Piste {0}',
+  'Audio y subtítulos': 'Audio et sous-titres',
+  'Audio': 'Audio',
+  'Subtítulos': 'Sous-titres',
+  'No se pudo reproducir: {0}': 'Lecture impossible : {0}',
+  'Salir': 'Quitter',
+  'Atrás 10 s': 'Reculer de 10 s',
+  'Pausa': 'Pause',
+  'Reproducir': 'Lire',
+  'Adelante 10 s': 'Avancer de 10 s',
+  'Pantalla completa': 'Plein écran',
+  'OK: pausa · ◀ ▶: 10 s · ▲: audio y subtítulos · Atrás: salir':
+      'OK : pause · ◀ ▶ : 10 s · ▲ : audio et sous-titres · Retour : quitter',
 };

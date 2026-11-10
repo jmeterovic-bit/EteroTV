@@ -45,16 +45,18 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | Foco visible | Borde blanco en el botón enfocado (todos los tipos de botón); pósters ya crecen con borde ámbar. | El tinte de foco de Material casi no se ve en una TV. |
 | Márgenes en TV | 32 × 18 dp alrededor de toda la app, solo en TV. | Algunos televisores cortan los bordes (overscan). |
 | TV: conectar Google | La TV muestra un código de 6 números y escucha en el puerto 47123 de la red local; el celular o PC conectado la busca (su red /24 o la IP escrita a mano) y le manda la sesión (refresh token del cliente de escritorio) cifrada: X25519 + HKDF con el código + AES-GCM. Código equivocado no descifra; 5 errores y la TV deja de escuchar. | Google rechaza `drive.appdata` en el device flow («Invalid device flow scope», visto en la Bravia de Jose el 2026-11-10) aunque su documentación lo lista. Jose eligió esta opción entre: carpeta visible con `drive.file` (dejaba la contraseña IPTV en un archivo visible) o TV sin sincronizar. Un atacante activo en la misma red en ese momento podría probar los códigos sin conexión; aceptado para una red de casa. |
+| Reproductor propio | EteroTV reproduce con media_kit (motor mpv) por defecto en todos los aparatos; VLC, Just Player y MX Player quedan en Ajustes → Reproductor (por aparato). Idiomas del perfil con `alang`/`slang`; «Sin subtítulos» = `sid=no`; `subs-fallback-forced=no` para no elegir forzados solos. Controles como VLC: control remoto (OK pausa, ◀ ▶ 10 s y 30 s si se mantiene, ▲ audio y subtítulos, ▼ barra, Atrás sale), celular (toque muestra la barra, doble toque a los lados ±10 s, al centro pausa), PC (espacio, flechas, F, doble clic pantalla completa, Esc). Interruptor de decodificación por hardware para diagnosticar TVs. APK solo ARM (`android-arm`, `android-arm64`) para no duplicar el tamaño. | Jose lo pidió el 2026-11-10 (antes rechazado: prefería VLC). VLC se cuelga en su Bravia, no acepta idioma por intent en Android ni salta forzados, y no informa la posición mientras reproduce. media_kit: misma API en Android y Windows. |
+| Imagen propia de perfil | Además de los dibujos, en celular y PC se puede usar una imagen del aparato: se recorta al centro, 192 px, JPEG en base64 dentro de `avatar` (`img:…`), así se sincroniza con el perfil y la TV la muestra. En la TV no se ofrece elegirla. | Pedido por Jose el 2026-11-10 para uso personal. Los personajes con dueño no se incluyen en la app; la imagen la elige él. |
 | Firma Android | Workflow «Create Android signing key» (una vez) y secretos `ANDROID_KEYSTORE_*` | Sin clave fija, cada APK se firma con una clave temporal y no se instala encima del anterior. |
 
 ## Pendiente
 - Etapa 3 en 0.5.0: falta probarla en Google TV y Fire TV (menú manteniendo OK, Atrás, buscadores, márgenes). Ajustar según lo que Jose note.
+- 1.1.0: probar el reproductor propio en la Bravia, la Fire TV, el celular y Windows (imagen, idiomas, controles). Después: botón «Ver siguiente» sobre el video (2.0).
 - Etapa 4: guía EPG.
 - Sin probar con el servidor real de Jose ni en dispositivos.
 
 ## Rechazado
 - Inicio de sesión con código (google.com/device) en TV: Google no acepta `drive.appdata` ahí (2026-11-10).
-- Reproductor propio (Jose prefiere VLC; en aparatos donde VLC falla se usa otro externo, no uno propio).
 - Firebase o Supabase para sincronizar: datos en un tercero; Drive alcanza.
 - Trakt.tv: obliga a emparejar con TMDB y no guarda canales ni credenciales.
 - Frase maestra para las credenciales (Jose, 2026-11-08).
@@ -83,3 +85,4 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | 2026-11-10 | v0.7.0 (antes 0.6.4): «Reproducir con» por aparato (Just Player / MX Player donde VLC no funciona: la Bravia de Jose); filas con «Ver todo» como cabecera y entrada por el primer elemento (idea de Jose); marcas de foco por tipo de nodo porque `debugLabel` no existe en release. |
 | 2026-11-10 | v0.8.0: idioma de la app (es/en/fr), idioma de audio y subtítulos (VLC en Windows; pasos para Android), buscar con el cursor listo y elegir dónde, OK mantenido ya no elige «Ver ficha» en el menú, Inicio no pierde el foco al subir rápido. |
 | 2026-11-10 | v1.0.0: perfiles como Netflix («¿Quién va a ver?» al abrir, hasta 5, cada uno con su biblioteca e idiomas, sincronizados), dibujos con emoji. |
+| 2026-11-10 | v1.1.0 (prueba del reproductor propio): media_kit por defecto, VLC/Just Player/MX Player como alternativa por aparato, idiomas del perfil en todos los aparatos, decodificación por hardware opcional, imagen propia de perfil (celular y PC). |

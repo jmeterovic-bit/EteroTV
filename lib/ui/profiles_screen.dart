@@ -1,7 +1,9 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../data/profiles.dart';
+import '../platform/device.dart';
 import '../state/app_state.dart';
 import 'i18n.dart';
 import 'remote.dart';
@@ -18,17 +20,19 @@ class AvatarCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = avatarOf(avatar);
+    final photo = avatarPhoto(avatar);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: a.color,
+        color: photo == null ? a.color : Colors.black,
         shape: BoxShape.circle,
+        image: photo == null ? null : DecorationImage(image: photo, fit: BoxFit.cover),
         border: Border.all(color: focused ? Colors.white : Colors.transparent, width: size > 60 ? 4 : 2),
       ),
       alignment: Alignment.center,
-      child: Text(a.emoji, style: TextStyle(fontSize: size * 0.55, height: 1.1)),
+      child: photo != null ? null : Text(a.emoji, style: TextStyle(fontSize: size * 0.55, height: 1.1)),
     );
   }
 }
@@ -215,6 +219,39 @@ class _ProfileEditorState extends State<ProfileEditor> {
     super.dispose();
   }
 
+  bool _loadingPhoto = false;
+
+  /// Phone and PC only: on a TV there is nowhere to pick a file from (the
+  /// picture still shows there, it comes with the profile).
+  Future<void> _pickPhoto() async {
+    final file = await openFile(
+      acceptedTypeGroups: [
+        XTypeGroup(
+          label: tr('Imágenes'),
+          extensions: const ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'],
+          mimeTypes: const ['image/*'],
+          uniformTypeIdentifiers: const ['public.image'],
+        ),
+      ],
+    );
+    if (file == null || !mounted) return;
+    setState(() => _loadingPhoto = true);
+    String? avatar;
+    try {
+      avatar = await photoAvatar(await file.readAsBytes());
+    } catch (_) {
+      avatar = null;
+    }
+    if (!mounted) return;
+    setState(() {
+      _loadingPhoto = false;
+      if (avatar != null) _avatar = avatar;
+    });
+    if (avatar == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('No se pudo leer esa imagen.'))));
+    }
+  }
+
   Future<void> _save() async {
     final s = context.read<AppState>();
     final name = _name.text.trim();
@@ -291,6 +328,27 @@ class _ProfileEditorState extends State<ProfileEditor> {
                 ),
             ],
           ),
+          if (!runningOnTv) ...[
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _loadingPhoto ? null : _pickPhoto,
+                  icon: _loadingPhoto
+                      ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.add_photo_alternate_outlined),
+                  label: Text(tr('Usar una imagen tuya')),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    tr('Se recorta en cuadrado y llega a tus otros aparatos con el perfil.'),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 24),
           Text(tr('Elige un dibujo'), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),

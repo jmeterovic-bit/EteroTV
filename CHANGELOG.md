@@ -1,5 +1,16 @@
 # Cambios
 
+## 1.1.0
+- Reproductor propio (prueba): EteroTV reproduce dentro de la app por defecto, en todos los aparatos. VLC, Just Player y MX Player siguen en Ajustes → Reproductor.
+  - Usa el idioma de audio y subtítulos del perfil también en Android. Si el video no lo tiene, usa su pista original. No elige subtítulos forzados por su cuenta.
+  - Control remoto: OK pausa, ◀ ▶ 10 s (mantener: 30 s), ▲ audio y subtítulos, ▼ muestra u oculta la barra, Atrás sale.
+  - Celular: toque muestra la barra, doble toque a la izquierda o derecha salta 10 s, al centro pausa.
+  - PC: espacio pausa, flechas 10 s, F o doble clic pantalla completa, Esc sale.
+  - Guarda hasta dónde viste igual que antes, y en las series el aviso del siguiente episodio aparece sobre el video al llegar a los créditos.
+  - Ajustes → «Decodificar con el chip del aparato»: si la imagen sale negra o verde, apagarlo.
+- Perfiles: en el celular y el PC se puede usar una imagen tuya como ícono (además de los dibujos). Llega a los otros aparatos con el perfil.
+- El APK es solo para aparatos ARM (todos los celulares, Google TV y Fire TV), para que no pese el doble.
+
 ## 1.0.0
 - Perfiles, como en Netflix: al abrir la app aparece «¿Quién va a ver?». Cada perfil tiene sus favoritos, «Seguir viendo», lo visto, el idioma de la app y el de audio y subtítulos. La cuenta IPTV, el PIN y las carpetas protegidas son de todos.
 - Hasta 5 perfiles. «Agregar perfil» y «Administrar perfiles» (nombre, dibujo, eliminar). Se cambia de perfil con el dibujo de arriba del menú izquierdo, o en Ajustes → Perfil.

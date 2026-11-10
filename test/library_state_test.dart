@@ -48,9 +48,16 @@ void main() {
       [series, CatalogItem(kind: Kind.series, id: 'h', name: 'Oculta', categoryId: 'x')],
     );
     vlc = _FakeVlc();
-    s = AppState(db: db, prefs: await SharedPreferences.getInstance(), deviceId: 't', vlc: vlc)
+    s = AppState(db: db, prefs: await SharedPreferences.getInstance(), deviceId: 't', vlc: vlc, own: vlc)
       ..creds = Credentials(server: 'http://x:8080', username: 'u', password: 'secreta');
     await s.init();
+  });
+
+  test('the own player is the default; an outside one can be chosen per device', () async {
+    expect(s.useOwnPlayer, isTrue);
+    await s.setUseOwnPlayer(false);
+    expect(s.useOwnPlayer, isFalse);
+    expect(s.player, same(s.vlc));
   });
 
   test('mark episodes seen without playing, and unmark', () async {

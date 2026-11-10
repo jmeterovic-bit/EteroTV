@@ -303,4 +303,29 @@ const en = <String, String>{
       'Its favorites, what it was watching and what it watched are deleted, on all your devices.',
   '¿Eliminar «{0}»?': 'Delete «{0}»?',
   '¿Quién va a ver?': 'Who\'s watching?',
+  'Imágenes': 'Images',
+  'No se pudo leer esa imagen.': 'Couldn\'t read that image.',
+  'Usar una imagen tuya': 'Use your own picture',
+  'Se recorta en cuadrado y llega a tus otros aparatos con el perfil.':
+      'It is cropped to a square and reaches your other devices with the profile.',
+  'EteroTV (propio)': 'EteroTV (built-in)',
+  'Solo en este aparato. EteroTV es el normal; VLC, Just Player o MX Player son alternativas (tienen que estar instalados). Todos guardan hasta dónde viste.': 'This device only. EteroTV is the default; VLC, Just Player or MX Player are alternatives (they must be installed). All of them save where you stopped.',
+  'Solo en este aparato. EteroTV es el normal; VLC es la alternativa (tiene que estar instalado).':
+      'This device only. EteroTV is the default; VLC is the alternative (it must be installed).',
+  'Decodificar con el chip del aparato': 'Decode with the device\'s chip',
+  'Más fluido. Apágalo si la imagen se ve negra, verde o se corta (vale para el próximo video).':
+      'Smoother. Turn it off if the picture is black, green or stutters (applies to the next video).',
+  'Pista {0}': 'Track {0}',
+  'Audio y subtítulos': 'Audio and subtitles',
+  'Audio': 'Audio',
+  'Subtítulos': 'Subtitles',
+  'No se pudo reproducir: {0}': 'Couldn\'t play: {0}',
+  'Salir': 'Exit',
+  'Atrás 10 s': 'Back 10 s',
+  'Pausa': 'Pause',
+  'Reproducir': 'Play',
+  'Adelante 10 s': 'Forward 10 s',
+  'Pantalla completa': 'Full screen',
+  'OK: pausa · ◀ ▶: 10 s · ▲: audio y subtítulos · Atrás: salir':
+      'OK: pause · ◀ ▶: 10 s · ▲: audio and subtitles · Back: exit',
 };

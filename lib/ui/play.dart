@@ -24,8 +24,8 @@ Future<void> playWithChecks(
 }) async {
   final state = context.read<AppState>();
   final messenger = ScaffoldMessenger.of(context);
-  if (!await state.vlc.available()) {
-    if (context.mounted) await _noVlc(context, state.vlc.name);
+  if (!await state.player.available()) {
+    if (context.mounted) await _noVlc(context, state.player.name);
     return;
   }
   // Right after closing VLC the server may still count that stream: the
@@ -56,9 +56,11 @@ Future<void> playWithChecks(
     asking = true;
     final next = await state.nextAfter(e);
     if (next == null || !context.mounted) return;
-    WinWindow.bringToFront();
+    // The own player is inside the app: the message shows over the video.
+    final outside = !state.useOwnPlayer;
+    if (outside) WinWindow.bringToFront();
     final go = await showNextEpisode(context, next.$2);
-    WinWindow.release();
+    if (outside) WinWindow.release();
     if (go && vlcClosed) {
       // VLC was closed while the message was up: start it from here.
       if (context.mounted) {
@@ -80,7 +82,7 @@ Future<void> playWithChecks(
   } on VlcMissing catch (e) {
     if (context.mounted) await _noVlc(context, e.player);
   } catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text(tr('No se pudo abrir {0}: {1}', [state.vlc.name, e]))));
+    messenger.showSnackBar(SnackBar(content: Text(tr('No se pudo abrir {0}: {1}', [state.player.name, e]))));
   } finally {
     vlcClosed = true;
     state.nearEnd.removeListener(listener);
