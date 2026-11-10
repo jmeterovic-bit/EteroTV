@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../iptv/xtream.dart';
 import '../state/app_state.dart';
+import 'remote.dart';
 
 /// Asks for a 4-digit PIN. Returns null when cancelled.
 Future<String?> askPin(BuildContext context, {required String title, String? message, bool forgot = false}) =>
@@ -42,7 +43,7 @@ class _PinDialogState extends State<_PinDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.message != null) ...[Text(widget.message!), const SizedBox(height: 12)],
-        TextField(
+        RemoteTextField(
           controller: _c,
           autofocus: true,
           obscureText: true,
@@ -97,7 +98,7 @@ Future<bool> resetPin(BuildContext context) async {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text('Escribe la contraseña de tu cuenta IPTV para elegir un PIN nuevo.'),
-          TextField(controller: c, obscureText: true, autofocus: true),
+          RemoteTextField(controller: c, obscureText: true, autofocus: true),
         ],
       ),
       actions: [

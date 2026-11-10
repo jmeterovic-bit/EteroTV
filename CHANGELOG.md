@@ -1,5 +1,8 @@
 # Cambios
 
+## 0.5.1
+- TV: la pantalla de inicio (datos del proveedor o «Traer mi cuenta desde Google Drive») ahora se maneja con el control. Antes el teclado aparecía solo y las flechas quedaban atrapadas en el primer campo. Los campos de texto, incluido el del PIN, funcionan como los buscadores: OK abre el teclado y las flechas pasan al siguiente.
+
 ## 0.5.0
 - Control remoto (etapa 3): mantener OK medio segundo, o el botón ≡ del control de Fire TV, abre el menú de pósters, «Continuar viendo» y carpetas (lo mismo que mantener presionado en el celular). Así se pueden proteger carpetas con PIN y quitar cosas de «Seguir viendo» desde la TV.
 - Atrás: en Series, Películas, Canales o Buscar vuelve a Inicio; en Inicio hay que pulsarlo dos veces para salir.

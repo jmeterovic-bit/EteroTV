@@ -79,22 +79,38 @@ class _RemoteMenuState extends State<RemoteMenu> {
       Focus(canRequestFocus: false, skipTraversal: true, onKeyEvent: _key, child: widget.child);
 }
 
-/// A search field that behaves on TV: moving through it with the arrows
+/// A text field that behaves on TV: moving through it with the arrows
 /// does not open the keyboard, OK opens it, and the arrows always lead out
 /// of it. On phone and PC it is a normal text field.
 class RemoteTextField extends StatefulWidget {
   const RemoteTextField({
     super.key,
-    required this.onChanged,
+    this.onChanged,
+    this.onSubmitted,
+    this.controller,
     this.decoration = const InputDecoration(),
     this.autofocus = false,
     this.textInputAction,
+    this.keyboardType,
+    this.obscureText = false,
+    this.autofillHints,
+    this.maxLength,
+    this.style,
+    this.textAlign = TextAlign.start,
     this.tv,
   });
-  final ValueChanged<String> onChanged;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final TextEditingController? controller;
   final InputDecoration decoration;
   final bool autofocus;
   final TextInputAction? textInputAction;
+  final TextInputType? keyboardType;
+  final bool obscureText;
+  final Iterable<String>? autofillHints;
+  final int? maxLength;
+  final TextStyle? style;
+  final TextAlign textAlign;
 
   /// Overrides [runningOnTv] (tests).
   final bool? tv;
@@ -147,15 +163,23 @@ class _RemoteTextFieldState extends State<RemoteTextField> {
   Widget build(BuildContext context) {
     final field = TextField(
       focusNode: _focus,
+      controller: widget.controller,
       autofocus: widget.autofocus,
       readOnly: _tv && !_typing,
       onChanged: widget.onChanged,
       textInputAction: widget.textInputAction,
-      onSubmitted: (_) {
+      keyboardType: widget.keyboardType,
+      obscureText: widget.obscureText,
+      autofillHints: widget.autofillHints,
+      maxLength: widget.maxLength,
+      style: widget.style,
+      textAlign: widget.textAlign,
+      onSubmitted: (v) {
         if (_typing) setState(() => _typing = false);
+        widget.onSubmitted?.call(v);
       },
       decoration: _tv && !_typing
-          ? widget.decoration.copyWith(hintText: '${widget.decoration.hintText ?? 'Buscar'} (OK para escribir)')
+          ? widget.decoration.copyWith(hintText: [?widget.decoration.hintText, '(OK para escribir)'].join(' '))
           : widget.decoration,
     );
     if (!_tv) return field;
