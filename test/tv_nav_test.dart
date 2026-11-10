@@ -303,4 +303,27 @@ void main() {
     }
     expect(label(), first);
   });
+
+  // Holding the arrow or pressing it quickly (Jose, 2026-11-10: the focus
+  // got lost on Inicio).
+  for (final gap in [16, 50, 100]) {
+    testWidgets('Inicio: subir rápido ($gap ms)', (tester) async {
+      await open(tester, const HomeScreen());
+      for (var i = 0; i < 18; i++) {
+        await press(tester, LogicalKeyboardKey.arrowDown, 'abajo $i');
+      }
+      final ups = <String>[];
+      for (var i = 0; i < 40; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 2)));
+        await tester.pump(Duration(milliseconds: gap));
+        expect(focus(), isNot(isA<FocusScopeNode>()), reason: 'arriba $i: nada tiene el foco');
+        expect((Offset.zero & tv).contains(focus().rect.center), isTrue, reason: 'arriba $i: fuera (${focus().rect})');
+        ups.add(label());
+      }
+      await wait(tester);
+      expect(focus(), isNot(isA<FocusScopeNode>()));
+      expect(focus().context!.findAncestorWidgetOfExactType<HeroBanner>(), isNotNull, reason: '$ups');
+    });
+  }
 }
