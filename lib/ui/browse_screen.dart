@@ -418,7 +418,7 @@ class ChannelTile extends StatelessWidget {
           child: NetImage(item.icon, icon: Icons.live_tv, fit: BoxFit.contain),
         ),
         title: Text(item.name),
-        subtitle: item.number > 0 ? Text('${item.number}') : null,
+        subtitle: EpgLine(channelId: item.id, number: item.number),
         onTap: play,
         onLongPress: () => toggleFavoriteWithNote(context, item),
         trailing: IconButton(
@@ -459,4 +459,34 @@ class PosterTile extends StatelessWidget {
       onLongPress: () => showItemMenu(context, item),
     );
   }
+}
+
+/// Under a channel: its number and what it shows now and next, from the
+/// provider's guide (nothing more when the provider has none).
+class EpgLine extends StatefulWidget {
+  const EpgLine({super.key, required this.channelId, this.number = 0});
+  final String channelId;
+  final int number;
+
+  @override
+  State<EpgLine> createState() => _EpgLineState();
+}
+
+class _EpgLineState extends State<EpgLine> {
+  late final Future<List<EpgEntry>> _epg = context.read<AppState>().epgFor(widget.channelId);
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<EpgEntry>>(
+    future: _epg,
+    builder: (context, snap) {
+      final (on, next) = nowAndNext(snap.data ?? const [], DateTime.now());
+      String hm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+      final lines = [
+        if (on != null) tr('Ahora: {0}', [on.title]) else if (widget.number > 0) '${widget.number}',
+        if (next != null) tr('Después, {0}: {1}', [hm(next.start), next.title]),
+      ];
+      if (lines.isEmpty) return const SizedBox.shrink();
+      return Text(lines.join('\n'), maxLines: 2, overflow: TextOverflow.ellipsis);
+    },
+  );
 }

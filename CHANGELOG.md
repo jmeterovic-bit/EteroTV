@@ -7,7 +7,11 @@
   - Celular: toque muestra la barra, doble toque a la izquierda o derecha salta 10 s, al centro pausa.
   - PC: espacio pausa, flechas 10 s, F o doble clic pantalla completa, Esc sale.
   - Guarda hasta dónde viste igual que antes, y en las series el aviso del siguiente episodio aparece sobre el video al llegar a los créditos.
-  - Ajustes → «Decodificar con el chip del aparato»: si la imagen sale negra o verde, apagarlo.
+  - Ocupa toda la pantalla en la TV (sin los márgenes grises de la app).
+  - Barra con el control: ◀ ▶ recorren los botones y OK los usa; ▲ va a la línea de tiempo, donde ◀ ▶ mueven el video; Atrás oculta la barra. Con la barra oculta, ◀ ▶ mueven el video y OK pausa.
+  - Ajustes → «Decodificar»: con el chip (normal), con el chip directo a la pantalla (más nítido, solo Android) o sin el chip. «Audio y subtítulos» muestra el códec, la resolución y cómo se decodifica, para comparar.
+  - Un error de una pista que no impide ver el video (en la Bravia: «Could not open codec») ya no se muestra.
+- Canales en vivo: «Ahora» y «Después» de la guía del proveedor, en la lista de canales y sobre el video.
 - Perfiles: en el celular y el PC se puede usar una imagen tuya como ícono (además de los dibujos). Llega a los otros aparatos con el perfil.
 - El APK es solo para aparatos ARM (todos los celulares, Google TV y Fire TV), para que no pese el doble.
 

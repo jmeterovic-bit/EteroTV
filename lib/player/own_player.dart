@@ -6,7 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import '../iptv/xtream.dart';
+import '../platform/device.dart';
 import '../ui/i18n.dart';
+import '../ui/remote.dart';
 import 'vlc.dart';
 
 /// Set on the app's MaterialApp, so the player can open its screen from
@@ -28,12 +31,37 @@ Map<String, String> mpvTrackOptions(TrackLang audio, TrackLang subs) => {
   'subs-fallback-forced': 'no',
 };
 
+/// How the own player decodes the video (Ajustes → Reproductor, per device).
+enum VideoDecode {
+  /// The chip decodes and mpv draws the picture (it can fall back to
+  /// software for a track the chip refuses).
+  auto,
+
+  /// Android: the chip decodes and draws straight on the screen, like Just
+  /// Player. Sharpest and lightest, but a video the chip cannot decode
+  /// shows no picture.
+  direct,
+
+  /// No chip: the processor decodes. Slower, works with anything.
+  software;
+
+  static VideoDecode fromName(String? n) => values.firstWhere((d) => d.name == n, orElse: () => auto);
+
+  VideoControllerConfiguration get configuration => switch (this) {
+    auto => const VideoControllerConfiguration(),
+    direct => const VideoControllerConfiguration(vo: 'mediacodec_embed', hwdec: 'mediacodec'),
+    software => const VideoControllerConfiguration(enableHardwareAcceleration: false),
+  };
+}
+
 /// EteroTV's own player (2026-11-10, Jose: VLC failed on his Bravia and
 /// took no language from the app). Built on media_kit (the mpv engine).
 /// It runs inside the app, so it knows the position and the tracks.
 class OwnPlayer extends VlcLauncher {
-  /// Ajustes → Reproductor (this device): off when a TV's chip decodes badly.
-  bool hardwareDecoding = true;
+  VideoDecode decode = VideoDecode.auto;
+
+  /// For the next live channel: its guide, shown over the video.
+  Future<List<EpgEntry>> Function()? nextEpg;
 
   @override
   String get name => 'EteroTV';
@@ -53,6 +81,8 @@ class OwnPlayer extends VlcLauncher {
     int startSecs = 0,
     void Function(int positionSecs, int lengthSecs)? onProgress,
   }) async {
+    final epg = nextEpg;
+    nextEpg = null;
     final nav = navigatorKey.currentState;
     if (nav == null) return null;
     final done = Completer<PlayResult?>();
@@ -65,7 +95,8 @@ class OwnPlayer extends VlcLauncher {
             startSecs: startSecs,
             audio: audioLang,
             subs: subLang,
-            hardwareDecoding: hardwareDecoding,
+            decode: decode,
+            epg: epg,
             onProgress: onProgress,
             onOpen: (c) => _close = c,
             onDone: (r) {
@@ -88,7 +119,8 @@ class OwnPlayerScreen extends StatefulWidget {
     this.startSecs = 0,
     this.audio = TrackLang.original,
     this.subs = TrackLang.none,
-    this.hardwareDecoding = true,
+    this.decode = VideoDecode.auto,
+    this.epg,
     this.onProgress,
     this.onOpen,
     this.onDone,
@@ -99,7 +131,10 @@ class OwnPlayerScreen extends StatefulWidget {
   final int startSecs;
   final TrackLang audio;
   final TrackLang subs;
-  final bool hardwareDecoding;
+  final VideoDecode decode;
+
+  /// Live channels: loads the guide shown in the bar.
+  final Future<List<EpgEntry>> Function()? epg;
   final void Function(int positionSecs, int lengthSecs)? onProgress;
 
   /// Gets the function that closes the screen (for [OwnPlayer.stop]).
@@ -110,15 +145,22 @@ class OwnPlayerScreen extends StatefulWidget {
   State<OwnPlayerScreen> createState() => _OwnPlayerScreenState();
 }
 
+/// A button of the bar. On a TV the remote moves a highlight over them
+/// (they take no focus, so the arrows never leave the player).
+class _Action {
+  const _Action(this.icon, this.tip, this.onTap, {this.size = 32});
+  final IconData icon;
+  final String tip;
+  final VoidCallback onTap;
+  final double size;
+}
+
 class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   // Logs off: mpv would print the stream URL, which carries the IPTV password.
   late final Player _player = Player(
     configuration: const PlayerConfiguration(logLevel: MPVLogLevel.error, title: 'EteroTV'),
   );
-  late final VideoController _video = VideoController(
-    _player,
-    configuration: VideoControllerConfiguration(enableHardwareAcceleration: widget.hardwareDecoding),
-  );
+  late final VideoController _video = VideoController(_player, configuration: widget.decode.configuration);
   final _focus = FocusNode();
   final List<StreamSubscription<Object?>> _subs = [];
 
@@ -127,33 +169,49 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   bool _playing = false;
   bool _buffering = true;
   bool _ended = false;
+
+  /// The video got going: an error after this (a track the chip refused)
+  /// does not stop it, so it is not shown.
+  bool _started = false;
   String? _error;
 
   /// The bar with the title, time and buttons. Hides after a few seconds.
   bool _overlay = true;
   Timer? _hideTimer;
 
+  /// Remote and keyboard: what the highlight is on. -1 is the time line
+  /// (◀ ▶ move the video), 0… the buttons.
+  int _sel = 0;
+  bool _keys = false;
+
   /// "-10 s" / "+10 s" shown for a moment after a seek.
   String? _flash;
   Timer? _flashTimer;
   int _lastReport = -1;
 
+  List<EpgEntry> _guide = [];
+  Timer? _guideTimer;
+
   static const _step = Duration(seconds: 10);
+
+  bool get _live => widget.epg != null || _len == Duration.zero;
 
   @override
   void initState() {
     super.initState();
     widget.onOpen?.call(close);
+    tvFullScreen.value = true;
     _subs
       ..add(
         _player.stream.position.listen((p) {
           _pos = p;
+          if (p > Duration.zero) _started = true;
           final s = p.inSeconds;
           if (s != _lastReport && _len > Duration.zero) {
             _lastReport = s;
             widget.onProgress?.call(s, _len.inSeconds);
           }
-          if (_overlay && mounted) setState(() {});
+          if (mounted && (_overlay || _error != null)) setState(() {});
         }),
       )
       ..add(_player.stream.duration.listen((d) => setState(() => _len = d)))
@@ -170,6 +228,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
       );
     _start();
     _showOverlay();
+    _loadGuide();
     if (Platform.isAndroid) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
@@ -183,6 +242,18 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
       }
     }
     await _player.open(Media(widget.url, start: Duration(seconds: widget.startSecs)));
+  }
+
+  Future<void> _loadGuide() async {
+    final load = widget.epg;
+    if (load == null) return;
+    final g = await load();
+    if (!mounted) return;
+    setState(() => _guide = g);
+    // Refresh the "now" line when the programme changes.
+    _guideTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && _overlay) setState(() {});
+    });
   }
 
   bool _closing = false;
@@ -205,28 +276,31 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     }
     _hideTimer?.cancel();
     _flashTimer?.cancel();
+    _guideTimer?.cancel();
     _focus.dispose();
     _player.dispose();
+    tvFullScreen.value = false;
     if (Platform.isAndroid) SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
-  void _showOverlay() {
-    setState(() => _overlay = true);
+  void _showOverlay({int? select}) {
+    setState(() {
+      _overlay = true;
+      if (select != null) _sel = select;
+    });
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(seconds: 4), () {
+    _hideTimer = Timer(const Duration(seconds: 5), () {
       if (mounted && _playing) setState(() => _overlay = false);
     });
   }
 
-  void _toggleOverlay() {
-    if (_overlay) {
-      _hideTimer?.cancel();
-      setState(() => _overlay = false);
-    } else {
-      _showOverlay();
-    }
+  void _hideOverlay() {
+    _hideTimer?.cancel();
+    setState(() => _overlay = false);
   }
+
+  void _toggleOverlay() => _overlay ? _hideOverlay() : _showOverlay();
 
   void _playPause() {
     _player.playOrPause();
@@ -234,7 +308,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   }
 
   void _seekBy(Duration d) {
-    if (_len == Duration.zero) return; // live channel
+    if (_live) return;
     var t = _pos + d;
     if (t < Duration.zero) t = Duration.zero;
     if (t > _len) t = _len;
@@ -248,39 +322,86 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _showOverlay();
   }
 
+  List<_Action> _actions(bool touch) => [
+    if (!_live) _Action(Icons.replay_10, tr('Atrás 10 s'), () => _seekBy(-_step)),
+    _Action(_playing ? Icons.pause : Icons.play_arrow, _playing ? tr('Pausa') : tr('Reproducir'), _playPause, size: 40),
+    if (!_live) _Action(Icons.forward_10, tr('Adelante 10 s'), () => _seekBy(_step)),
+    _Action(Icons.subtitles, tr('Audio y subtítulos'), _chooseTracks),
+    if (!touch) _Action(Icons.fullscreen, tr('Pantalla completa'), _toggleFullscreen),
+  ];
+
+  int get _playIndex => _live ? 0 : 1;
+
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
     if (e is KeyUpEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
     final repeat = e is KeyRepeatEvent;
-    if (k == LogicalKeyboardKey.arrowLeft || k == LogicalKeyboardKey.mediaRewind) {
-      _seekBy(repeat ? -_step * 3 : -_step);
-    } else if (k == LogicalKeyboardKey.arrowRight || k == LogicalKeyboardKey.mediaFastForward) {
-      _seekBy(repeat ? _step * 3 : _step);
-    } else if (repeat) {
-      return KeyEventResult.handled;
-    } else if (k == LogicalKeyboardKey.select ||
-        k == LogicalKeyboardKey.enter ||
-        k == LogicalKeyboardKey.space ||
-        k == LogicalKeyboardKey.mediaPlayPause ||
-        k == LogicalKeyboardKey.gameButtonA) {
-      _playPause();
+    final left = k == LogicalKeyboardKey.arrowLeft;
+    final right = k == LogicalKeyboardKey.arrowRight;
+    final up = k == LogicalKeyboardKey.arrowUp;
+    final down = k == LogicalKeyboardKey.arrowDown;
+    final ok = k == LogicalKeyboardKey.select || k == LogicalKeyboardKey.enter || k == LogicalKeyboardKey.gameButtonA;
+    final back = k == LogicalKeyboardKey.goBack || k == LogicalKeyboardKey.browserBack;
+    _keys = true;
+    final actions = _actions(Platform.isAndroid || Platform.isIOS);
+    final onLine = _sel < 0;
+
+    if (k == LogicalKeyboardKey.mediaRewind) {
+      _seekBy(-_step * 3);
+    } else if (k == LogicalKeyboardKey.mediaFastForward) {
+      _seekBy(_step * 3);
+    } else if (k == LogicalKeyboardKey.mediaPlayPause || k == LogicalKeyboardKey.space) {
+      if (!repeat) _playPause();
     } else if (k == LogicalKeyboardKey.mediaPlay) {
       _player.play();
     } else if (k == LogicalKeyboardKey.mediaPause) {
       _player.pause();
-    } else if (k == LogicalKeyboardKey.arrowUp || k == LogicalKeyboardKey.keyL || k == LogicalKeyboardKey.contextMenu) {
-      _chooseTracks();
-    } else if (k == LogicalKeyboardKey.arrowDown) {
-      _toggleOverlay();
-    } else if (k == LogicalKeyboardKey.keyF && !Platform.isAndroid) {
-      _toggleFullscreen();
-    } else if (k == LogicalKeyboardKey.escape ||
-        k == LogicalKeyboardKey.goBack ||
-        k == LogicalKeyboardKey.browserBack ||
-        k == LogicalKeyboardKey.mediaStop) {
+    } else if (k == LogicalKeyboardKey.mediaStop || k == LogicalKeyboardKey.escape) {
       close();
+    } else if (k == LogicalKeyboardKey.keyL || k == LogicalKeyboardKey.contextMenu) {
+      if (!repeat) _chooseTracks();
+    } else if (k == LogicalKeyboardKey.keyF && !Platform.isAndroid) {
+      if (!repeat) _toggleFullscreen();
+    } else if (!_overlay) {
+      // Bar hidden: ◀ ▶ move the video, OK pauses, anything else shows the bar.
+      if (left || right) {
+        if (!_live) _sel = -1;
+        _seekBy((left ? -_step : _step) * (repeat ? 3 : 1));
+      } else if (ok) {
+        if (repeat) return KeyEventResult.handled;
+        _player.playOrPause();
+        _showOverlay(select: _playIndex);
+      } else if (up || down) {
+        _showOverlay(select: _playIndex);
+      } else if (back) {
+        close();
+      } else {
+        return KeyEventResult.ignored;
+      }
     } else {
-      return KeyEventResult.ignored;
+      // Bar shown: the highlight moves over the time line and the buttons.
+      if (left || right) {
+        if (onLine) {
+          _seekBy((left ? -_step : _step) * (repeat ? 3 : 1));
+        } else {
+          _showOverlay(select: (_sel + (left ? -1 : 1)).clamp(0, actions.length - 1));
+        }
+      } else if (up) {
+        if (!onLine && !_live) _showOverlay(select: -1);
+      } else if (down) {
+        onLine ? _showOverlay(select: _playIndex) : _hideOverlay();
+      } else if (ok) {
+        if (repeat) return KeyEventResult.handled;
+        if (onLine) {
+          _playPause();
+        } else {
+          actions[_sel.clamp(0, actions.length - 1)].onTap();
+        }
+      } else if (back) {
+        _hideOverlay();
+      } else {
+        return KeyEventResult.ignored;
+      }
     }
     return KeyEventResult.handled;
   }
@@ -291,11 +412,42 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     await (_fullscreen ? defaultEnterNativeFullscreen() : defaultExitNativeFullscreen());
   }
 
+  /// What the video is and how it is decoded, to compare settings.
+  Future<String> _videoInfo() async {
+    final native = _player.platform;
+    if (native is! NativePlayer) return '';
+    Future<String> get(String p) async {
+      try {
+        return await native.getProperty(p);
+      } catch (_) {
+        return '';
+      }
+    }
+
+    final codec = await get('video-codec');
+    final w = await get('width');
+    final h = await get('height');
+    final hw = await get('hwdec-current');
+    final audio = await get('audio-codec-name');
+    final mode = switch (widget.decode) {
+      VideoDecode.auto => tr('chip'),
+      VideoDecode.direct => tr('chip directo'),
+      VideoDecode.software => tr('sin chip'),
+    };
+    return [
+      tr('Video: {0} {1}×{2}', [codec, w, h]),
+      tr('Decodifica: {0} ({1})', [hw.isEmpty || hw == 'no' ? tr('procesador') : hw, mode]),
+      if (audio.isNotEmpty) tr('Audio: {0}', [audio]),
+    ].join('\n');
+  }
+
   /// Audio and subtitles of this video.
   Future<void> _chooseTracks() async {
     _hideTimer?.cancel();
     final tracks = _player.state.tracks;
     final current = _player.state.track;
+    final info = await _videoInfo();
+    if (!mounted) return;
     String label(String? title, String? lang, int i) {
       final parts = [
         if (lang != null && lang.isNotEmpty) _langName(lang),
@@ -339,6 +491,11 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                 Navigator.pop(c);
               },
             ),
+          if (info.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: Text(info, style: Theme.of(c).textTheme.bodySmall),
+            ),
         ],
       ),
     );
@@ -358,6 +515,9 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final touch = Platform.isAndroid || Platform.isIOS;
+    // A refused track (seen on the Bravia: "Could not open codec") does not
+    // stop a video that plays: only an error before it starts is shown.
+    final error = _started ? null : _error;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Focus(
@@ -365,7 +525,12 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
         autofocus: true,
         onKeyEvent: _onKey,
         child: MouseRegion(
-          onHover: touch ? null : (_) => _showOverlay(),
+          onHover: touch
+              ? null
+              : (_) {
+                  _keys = false;
+                  _showOverlay();
+                },
           cursor: _overlay ? SystemMouseCursors.basic : SystemMouseCursors.none,
           child: Stack(
             fit: StackFit.expand,
@@ -375,36 +540,30 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
               // (like VLC). Windows: click pauses, double click is full screen.
               Row(
                 children: [
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: touch ? _toggleOverlay : _playPause,
-                      onDoubleTap: touch ? () => _seekBy(-_step) : _toggleFullscreen,
+                  for (final side in [-1, 0, 1])
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          _keys = false;
+                          touch ? _toggleOverlay() : _playPause();
+                        },
+                        onDoubleTap: !touch
+                            ? _toggleFullscreen
+                            : side == 0
+                            ? _playPause
+                            : () => _seekBy(side < 0 ? -_step : _step),
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: touch ? _toggleOverlay : _playPause,
-                      onDoubleTap: touch ? _playPause : _toggleFullscreen,
-                    ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: touch ? _toggleOverlay : _playPause,
-                      onDoubleTap: touch ? () => _seekBy(_step) : _toggleFullscreen,
-                    ),
-                  ),
                 ],
               ),
-              if (_buffering && _error == null) const Center(child: CircularProgressIndicator()),
-              if (_error != null)
+              if (_buffering && error == null) const Center(child: CircularProgressIndicator()),
+              if (error != null)
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Text(
-                      tr('No se pudo reproducir: {0}', [_error!]),
+                      tr('No se pudo reproducir: {0}', [error]),
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.white, fontSize: 18),
                     ),
@@ -427,95 +586,137 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   }
 
   Widget _bar(bool touch) {
-    final live = _len == Duration.zero;
     const white = TextStyle(color: Colors.white);
-    return Column(
-      children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.black87, Colors.transparent],
-            ),
-          ),
-          padding: const EdgeInsets.fromLTRB(8, 16, 16, 32),
-          child: Row(
-            children: [
-              IconButton(
-                color: Colors.white,
-                icon: const Icon(Icons.arrow_back),
-                tooltip: tr('Salir'),
-                onPressed: close,
+    final actions = _actions(touch);
+    final now = DateTime.now();
+    final (on, next) = nowAndNext(_guide, now);
+    String hm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    final lineSelected = _keys && _sel < 0;
+    // Big screens (TV) get a margin so nothing falls off the edge (overscan).
+    final edge = runningOnTv ? const EdgeInsets.symmetric(horizontal: 48, vertical: 24) : EdgeInsets.zero;
+    return Padding(
+      padding: edge,
+      child: Column(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.black87, Colors.transparent],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  widget.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: white.copyWith(fontSize: 20),
+            ),
+            padding: const EdgeInsets.fromLTRB(8, 16, 16, 32),
+            child: Row(
+              children: [
+                ExcludeFocus(
+                  child: IconButton(
+                    color: Colors.white,
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: tr('Salir'),
+                    onPressed: close,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ),
-        const Spacer(),
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
-              colors: [Colors.black87, Colors.transparent],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: white.copyWith(fontSize: 20),
+                  ),
+                ),
+              ],
             ),
           ),
-          padding: const EdgeInsets.fromLTRB(16, 32, 16, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (!live)
-                Row(
-                  children: [
-                    Text(formatClock(_pos), style: white),
-                    Expanded(
-                      child: Slider(
-                        focusNode: FocusNode(skipTraversal: true, canRequestFocus: false),
-                        value: _pos.inMilliseconds.clamp(0, _len.inMilliseconds).toDouble(),
-                        max: _len.inMilliseconds.toDouble(),
-                        onChanged: (v) {
-                          _player.seek(Duration(milliseconds: v.round()));
-                          _showOverlay();
-                        },
-                      ),
+          const Spacer(),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [Colors.black87, Colors.transparent],
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(16, 32, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (on != null) ...[
+                  Text(
+                    tr('Ahora: {0}', [on.title]),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: white.copyWith(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: LinearProgressIndicator(
+                      value:
+                          now.difference(on.start).inSeconds / on.end.difference(on.start).inSeconds.clamp(1, 1 << 30),
                     ),
-                    Text(formatClock(_len), style: white),
+                  ),
+                  Text('${hm(on.start)} – ${hm(on.end)}', style: white.copyWith(color: Colors.white70)),
+                ],
+                if (next != null)
+                  Text(
+                    tr('Después, {0}: {1}', [hm(next.start), next.title]),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: white.copyWith(color: Colors.white70),
+                  ),
+                if (!_live)
+                  Row(
+                    children: [
+                      Text(formatClock(_pos), style: white),
+                      Expanded(
+                        child: ExcludeFocus(
+                          child: SliderTheme(
+                            data: SliderTheme.of(context).copyWith(
+                              trackHeight: lineSelected ? 6 : 3,
+                              thumbShape: RoundSliderThumbShape(enabledThumbRadius: lineSelected ? 10 : 7),
+                              thumbColor: lineSelected ? Colors.white : null,
+                            ),
+                            child: Slider(
+                              value: _pos.inMilliseconds.clamp(0, _len.inMilliseconds).toDouble(),
+                              max: _len.inMilliseconds.toDouble(),
+                              onChanged: (v) {
+                                _player.seek(Duration(milliseconds: v.round()));
+                                _showOverlay();
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      Text(formatClock(_len), style: white),
+                    ],
+                  ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (final (i, a) in actions.indexed)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: _Btn(action: a, selected: _keys && _sel == i),
+                      ),
                   ],
                 ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (!live) _Btn(icon: Icons.replay_10, tip: tr('Atrás 10 s'), onTap: () => _seekBy(-_step)),
-                  _Btn(
-                    icon: _playing ? Icons.pause : Icons.play_arrow,
-                    tip: _playing ? tr('Pausa') : tr('Reproducir'),
-                    size: 40,
-                    onTap: _playPause,
+                if (!touch || runningOnTv)
+                  Center(
+                    child: Text(
+                      _live
+                          ? tr('◀ ▶: elegir · OK: usar · Atrás: ocultar')
+                          : tr('▲: línea de tiempo · ◀ ▶: elegir o mover 10 s · OK: usar · Atrás: ocultar'),
+                      style: white.copyWith(fontSize: 12, color: Colors.white70),
+                    ),
                   ),
-                  if (!live) _Btn(icon: Icons.forward_10, tip: tr('Adelante 10 s'), onTap: () => _seekBy(_step)),
-                  const SizedBox(width: 24),
-                  _Btn(icon: Icons.subtitles, tip: tr('Audio y subtítulos'), onTap: _chooseTracks),
-                  if (!touch) _Btn(icon: Icons.fullscreen, tip: tr('Pantalla completa'), onTap: _toggleFullscreen),
-                ],
-              ),
-              if (!touch)
-                Text(
-                  tr('OK: pausa · ◀ ▶: 10 s · ▲: audio y subtítulos · Atrás: salir'),
-                  style: white.copyWith(fontSize: 12, color: Colors.white70),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -532,17 +733,30 @@ String formatClock(Duration d) {
   return h > 0 ? '$h:$m:$s' : '$m:$s';
 }
 
-/// Not focusable: on a TV the remote's keys go straight to the player.
+/// Not focusable: on a TV the remote's keys go straight to the player, which
+/// draws the highlight itself.
 class _Btn extends StatelessWidget {
-  const _Btn({required this.icon, required this.tip, required this.onTap, this.size = 32});
-  final IconData icon;
-  final String tip;
-  final VoidCallback onTap;
-  final double size;
+  const _Btn({required this.action, required this.selected});
+  final _Action action;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) => ExcludeFocus(
-    child: IconButton(color: Colors.white, iconSize: size, tooltip: tip, icon: Icon(icon), onPressed: onTap),
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 100),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? Colors.white24 : Colors.transparent,
+        border: Border.all(color: selected ? Colors.white : Colors.transparent, width: 2),
+      ),
+      child: IconButton(
+        color: Colors.white,
+        iconSize: action.size,
+        tooltip: action.tip,
+        icon: Icon(action.icon),
+        onPressed: action.onTap,
+      ),
+    ),
   );
 }
 

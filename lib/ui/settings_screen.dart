@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../iptv/xtream.dart';
+import '../player/own_player.dart';
 import '../player/vlc.dart';
 import '../state/app_state.dart';
 import 'google_sync.dart';
@@ -122,6 +123,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ),
   );
 
+  String _decodeLabel(VideoDecode d) => switch (d) {
+    VideoDecode.auto => tr('Con el chip (normal)'),
+    VideoDecode.direct => tr('Con el chip, directo a la pantalla (más nítido)'),
+    VideoDecode.software => tr('Sin el chip (con el procesador)'),
+  };
+
   String _trackLabel(TrackLang l) => switch (l) {
     TrackLang.original => tr('Original del video'),
     TrackLang.none => tr('Sin subtítulos'),
@@ -218,14 +225,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => _choosePlayer(s),
           ),
           if (s.useOwnPlayer)
-            SwitchListTile(
-              secondary: const Icon(Icons.memory),
-              title: Text(tr('Decodificar con el chip del aparato')),
+            ListTile(
+              leading: const Icon(Icons.memory),
+              title: Text(tr('Decodificar: {0}', [_decodeLabel(s.videoDecode)])),
               subtitle: Text(
-                tr('Más fluido. Apágalo si la imagen se ve negra, verde o se corta (vale para el próximo video).'),
+                tr(
+                  'Si la imagen sale negra, verde, se corta o se ve menos nítida, prueba otra opción (vale para el próximo video). En «Audio y subtítulos» del reproductor se ve cuál usa.',
+                ),
               ),
-              value: s.hardwareDecoding,
-              onChanged: s.setHardwareDecoding,
+              onTap: () async {
+                final values = [
+                  VideoDecode.auto,
+                  if (s.androidPlayer != null) VideoDecode.direct,
+                  VideoDecode.software,
+                ];
+                final d = await _choose(tr('Decodificar el video'), values, s.videoDecode, _decodeLabel);
+                if (d != null) await s.setVideoDecode(d);
+              },
             )
           else if (s.androidPlayer == null)
             ListTile(

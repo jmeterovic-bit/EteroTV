@@ -34,6 +34,7 @@ class AppState extends ChangeNotifier {
 
   static const _ownKey = 'ownPlayer';
   static const _hwKey = 'hwDecoding';
+  static const _decodeKey = 'videoDecode';
 
   /// This device plays with EteroTV's own player (not synced).
   bool get useOwnPlayer => prefs.getBool(_ownKey) ?? true;
@@ -46,14 +47,17 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Own player: let the TV's or PC's chip decode the video. Off is slower
-  /// but helps where the picture fails.
-  bool get hardwareDecoding => prefs.getBool(_hwKey) ?? true;
+  /// Own player: how the video is decoded on this device (not synced).
+  VideoDecode get videoDecode {
+    final v = prefs.getString(_decodeKey);
+    if (v != null) return VideoDecode.fromName(v);
+    return prefs.getBool(_hwKey) == false ? VideoDecode.software : VideoDecode.auto; // 1.1.0 test build
+  }
 
-  Future<void> setHardwareDecoding(bool v) async {
-    await prefs.setBool(_hwKey, v);
+  Future<void> setVideoDecode(VideoDecode d) async {
+    await prefs.setString(_decodeKey, d.name);
     final o = own;
-    if (o is OwnPlayer) o.hardwareDecoding = v;
+    if (o is OwnPlayer) o.decode = d;
     notifyListeners();
   }
 
@@ -267,7 +271,7 @@ class AppState extends ChangeNotifier {
     final v = vlc;
     if (v is AndroidVlc) v.player = AndroidPlayer.fromName(prefs.getString(_playerKey));
     final o = own;
-    if (o is OwnPlayer) o.hardwareDecoding = hardwareDecoding;
+    if (o is OwnPlayer) o.decode = videoDecode;
     _loadProfiles();
     notifyListeners();
     final last = lastRefresh;
@@ -806,8 +810,48 @@ class AppState extends ChangeNotifier {
       ..device = deviceId;
     await _save(e);
     notifyListeners();
-    await player.play(x.liveUrl(ch.id), title: ch.name);
+    final p = player;
+    if (p is OwnPlayer) p.nextEpg = () => epgFor(ch.id);
+    await p.play(x.liveUrl(ch.id), title: ch.name);
     x.close();
+  }
+
+  // ---- Guide (live channels) ----
+
+  final Map<String, (DateTime, Future<List<EpgEntry>>)> _epg = {};
+  int _epgRunning = 0;
+  final List<Completer<void>> _epgQueue = [];
+
+  /// Now and next of a channel, from the provider. Kept 10 minutes; at most 4
+  /// requests at a time (a list shows many channels at once). Empty when the
+  /// provider has no guide for it or does not answer.
+  Future<List<EpgEntry>> epgFor(String channelId) {
+    final hit = _epg[channelId];
+    if (hit != null && DateTime.now().difference(hit.$1) < const Duration(minutes: 10)) return hit.$2;
+    final f = _loadEpg(channelId);
+    _epg[channelId] = (DateTime.now(), f);
+    return f;
+  }
+
+  Future<List<EpgEntry>> _loadEpg(String channelId) async {
+    final x = client;
+    if (x == null) return [];
+    if (_epgRunning >= 4) {
+      final turn = Completer<void>();
+      _epgQueue.add(turn);
+      await turn.future;
+    }
+    _epgRunning++;
+    try {
+      return await x.shortEpg(channelId).timeout(const Duration(seconds: 15));
+    } catch (_) {
+      _epg.remove(channelId); // try again next time
+      return [];
+    } finally {
+      x.close();
+      _epgRunning--;
+      if (_epgQueue.isNotEmpty) _epgQueue.removeAt(0).complete();
+    }
   }
 
   Future<String?> playMovie(CatalogItem m) {

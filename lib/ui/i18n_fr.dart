@@ -313,9 +313,6 @@ const fr = <String, String>{
   'Solo en este aparato. EteroTV es el normal; VLC, Just Player o MX Player son alternativas (tienen que estar instalados). Todos guardan hasta dónde viste.': 'Sur cet appareil seulement. EteroTV est celui par défaut ; VLC, Just Player ou MX Player sont des alternatives (ils doivent être installés). Tous enregistrent où tu t\'es arrêté.',
   'Solo en este aparato. EteroTV es el normal; VLC es la alternativa (tiene que estar instalado).':
       'Sur cet appareil seulement. EteroTV est celui par défaut ; VLC est l\'alternative (il doit être installé).',
-  'Decodificar con el chip del aparato': 'Décoder avec la puce de l\'appareil',
-  'Más fluido. Apágalo si la imagen se ve negra, verde o se corta (vale para el próximo video).':
-      'Plus fluide. Désactive-le si l\'image est noire, verte ou saccadée (s\'applique à la prochaine vidéo).',
   'Pista {0}': 'Piste {0}',
   'Audio y subtítulos': 'Audio et sous-titres',
   'Audio': 'Audio',
@@ -327,6 +324,21 @@ const fr = <String, String>{
   'Reproducir': 'Lire',
   'Adelante 10 s': 'Avancer de 10 s',
   'Pantalla completa': 'Plein écran',
-  'OK: pausa · ◀ ▶: 10 s · ▲: audio y subtítulos · Atrás: salir':
-      'OK : pause · ◀ ▶ : 10 s · ▲ : audio et sous-titres · Retour : quitter',
+  'Ahora: {0}': 'En ce moment : {0}',
+  'Después, {0}: {1}': 'Ensuite, {0} : {1}',
+  'Con el chip (normal)': 'Avec la puce (normal)',
+  'Con el chip, directo a la pantalla (más nítido)': 'Avec la puce, directement à l\'écran (plus net)',
+  'Sin el chip (con el procesador)': 'Sans la puce (avec le processeur)',
+  'Decodificar: {0}': 'Décodage : {0}',
+  'Si la imagen sale negra, verde, se corta o se ve menos nítida, prueba otra opción (vale para el próximo video). En «Audio y subtítulos» del reproductor se ve cuál usa.': 'Si l\'image est noire, verte, saccadée ou moins nette, essaie une autre option (s\'applique à la prochaine vidéo). « Audio et sous-titres » dans le lecteur indique laquelle est utilisée.',
+  'Decodificar el video': 'Décoder la vidéo',
+  'chip': 'puce',
+  'chip directo': 'puce directe',
+  'sin chip': 'sans puce',
+  'Video: {0} {1}×{2}': 'Vidéo : {0} {1}×{2}',
+  'Decodifica: {0} ({1})': 'Décodé par : {0} ({1})',
+  'procesador': 'processeur',
+  '◀ ▶: elegir · OK: usar · Atrás: ocultar': '◀ ▶ : choisir · OK : utiliser · Retour : masquer',
+  '▲: línea de tiempo · ◀ ▶: elegir o mover 10 s · OK: usar · Atrás: ocultar':
+      '▲ : barre de temps · ◀ ▶ : choisir ou déplacer de 10 s · OK : utiliser · Retour : masquer',
 };

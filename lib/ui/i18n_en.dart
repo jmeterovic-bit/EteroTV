@@ -312,9 +312,6 @@ const en = <String, String>{
   'Solo en este aparato. EteroTV es el normal; VLC, Just Player o MX Player son alternativas (tienen que estar instalados). Todos guardan hasta dónde viste.': 'This device only. EteroTV is the default; VLC, Just Player or MX Player are alternatives (they must be installed). All of them save where you stopped.',
   'Solo en este aparato. EteroTV es el normal; VLC es la alternativa (tiene que estar instalado).':
       'This device only. EteroTV is the default; VLC is the alternative (it must be installed).',
-  'Decodificar con el chip del aparato': 'Decode with the device\'s chip',
-  'Más fluido. Apágalo si la imagen se ve negra, verde o se corta (vale para el próximo video).':
-      'Smoother. Turn it off if the picture is black, green or stutters (applies to the next video).',
   'Pista {0}': 'Track {0}',
   'Audio y subtítulos': 'Audio and subtitles',
   'Audio': 'Audio',
@@ -326,6 +323,21 @@ const en = <String, String>{
   'Reproducir': 'Play',
   'Adelante 10 s': 'Forward 10 s',
   'Pantalla completa': 'Full screen',
-  'OK: pausa · ◀ ▶: 10 s · ▲: audio y subtítulos · Atrás: salir':
-      'OK: pause · ◀ ▶: 10 s · ▲: audio and subtitles · Back: exit',
+  'Ahora: {0}': 'Now: {0}',
+  'Después, {0}: {1}': 'Next, {0}: {1}',
+  'Con el chip (normal)': 'With the chip (normal)',
+  'Con el chip, directo a la pantalla (más nítido)': 'With the chip, straight to the screen (sharper)',
+  'Sin el chip (con el procesador)': 'Without the chip (with the processor)',
+  'Decodificar: {0}': 'Decoding: {0}',
+  'Si la imagen sale negra, verde, se corta o se ve menos nítida, prueba otra opción (vale para el próximo video). En «Audio y subtítulos» del reproductor se ve cuál usa.': 'If the picture is black, green, stutters or looks less sharp, try another option (applies to the next video). «Audio and subtitles» in the player shows which one is used.',
+  'Decodificar el video': 'Decode the video',
+  'chip': 'chip',
+  'chip directo': 'direct chip',
+  'sin chip': 'no chip',
+  'Video: {0} {1}×{2}': 'Video: {0} {1}×{2}',
+  'Decodifica: {0} ({1})': 'Decoded by: {0} ({1})',
+  'procesador': 'processor',
+  '◀ ▶: elegir · OK: usar · Atrás: ocultar': '◀ ▶: choose · OK: use · Back: hide',
+  '▲: línea de tiempo · ◀ ▶: elegir o mover 10 s · OK: usar · Atrás: ocultar':
+      '▲: timeline · ◀ ▶: choose or move 10 s · OK: use · Back: hide',
 };
