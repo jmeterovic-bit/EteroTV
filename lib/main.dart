@@ -10,10 +10,12 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:uuid/uuid.dart';
 
 import 'data/database.dart';
+import 'platform/device.dart';
 import 'state/app_state.dart';
 import 'sync/sync_service.dart';
 import 'ui/home_screen.dart';
 import 'ui/login_screen.dart';
+import 'ui/remote.dart';
 import 'ui/theme.dart';
 
 Future<void> main() async {
@@ -24,6 +26,7 @@ Future<void> main() async {
   } else {
     databaseFactory = sqflite.databaseFactorySqflitePlugin;
   }
+  runningOnTv = await isTv();
   final dir = await getApplicationSupportDirectory();
   final db = await AppDatabase.open(p.join(dir.path, 'eterotv.db'));
   final prefs = await SharedPreferences.getInstance();
@@ -57,6 +60,7 @@ class EteroApp extends StatelessWidget {
       title: 'EteroTV',
       debugShowCheckedModeBanner: false,
       theme: eteroTheme(),
+      builder: (context, child) => runningOnTv ? TvSafeArea(child: child!) : child!,
       home: signedIn ? const HomeScreen() : const LoginScreen(),
     );
   }

@@ -8,6 +8,7 @@ import '../state/app_state.dart';
 import 'browse_screen.dart' show catalogItemOf;
 import 'movie_screen.dart';
 import 'play.dart';
+import 'remote.dart';
 import 'series_screen.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -192,29 +193,33 @@ class _ContinueCardState extends State<ContinueCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            InkWell(
-              onFocusChange: (f) => setState(() => _focused = f),
-              onTap: () => playWithChecks(context, (st) => st.resume(e)),
-              onLongPress: _menu,
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    NetImage(e.icon, icon: Icons.movie),
-                    Center(
-                      child: Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.black54,
-                          border: Border.all(color: Colors.white, width: 2),
+            RemoteMenu(
+              onSelect: () => playWithChecks(context, (st) => st.resume(e)),
+              onMenu: _menu,
+              child: InkWell(
+                onFocusChange: (f) => setState(() => _focused = f),
+                onTap: () => playWithChecks(context, (st) => st.resume(e)),
+                onLongPress: _menu,
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      NetImage(e.icon, icon: Icons.movie),
+                      Center(
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black54,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(Icons.play_arrow, color: Colors.white),
                         ),
-                        child: const Icon(Icons.play_arrow, color: Colors.white),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

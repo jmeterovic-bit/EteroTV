@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.5.0
+- Control remoto (etapa 3): mantener OK medio segundo, o el botón ≡ del control de Fire TV, abre el menú de pósters, «Continuar viendo» y carpetas (lo mismo que mantener presionado en el celular). Así se pueden proteger carpetas con PIN y quitar cosas de «Seguir viendo» desde la TV.
+- Atrás: en Series, Películas, Canales o Buscar vuelve a Inicio; en Inicio hay que pulsarlo dos veces para salir.
+- Buscadores en la TV: pasar por el campo ya no abre el teclado; OK lo abre, y las flechas arriba y abajo salen del campo.
+- El botón enfocado se marca con un borde blanco, para ver siempre dónde está el control.
+- En la TV la app deja un margen en los bordes, para los televisores que los cortan.
+- Ajustes explica cómo usar el control remoto.
+
 ## 0.4.0
 - Sincronización con Google Drive (etapa 2): favoritos, avance, lo visto, la cuenta IPTV, el PIN y las carpetas protegidas quedan iguales en el celular, el PC y la TV. Se guardan en una carpeta oculta de tu Drive que solo EteroTV puede leer.
 - Conectar con Google: en el celular y el PC con el navegador; en Google TV y Fire TV con un código que se escribe en google.com/device desde otro equipo.

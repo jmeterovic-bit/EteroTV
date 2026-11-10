@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../logic/progress.dart';
+import 'remote.dart';
 import 'theme.dart';
 
 /// A poster/card that grows and gets a coloured border when focused, so it
@@ -32,7 +33,7 @@ class FocusCard extends StatefulWidget {
   final IconData? badge;
   final VoidCallback onTap;
 
-  /// Phone: long press opens the item's menu.
+  /// Long press (phone) or holding OK / the menu key (remote) opens the item's menu.
   final VoidCallback? onLongPress;
 
   @override
@@ -46,62 +47,66 @@ class _FocusCardState extends State<FocusCard> {
   Widget build(BuildContext context) {
     return SizedBox(
       width: widget.width,
-      child: InkWell(
-        autofocus: widget.autofocus,
-        onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
-        onFocusChange: (f) {
-          setState(() => _focused = f);
-          if (f) Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 150));
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: AnimatedScale(
-          scale: _focused ? 1.07 : 1,
-          duration: const Duration(milliseconds: 120),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AspectRatio(
-                aspectRatio: widget.aspect,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF262626),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: _focused ? accent : Colors.transparent, width: 3),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      NetImage(widget.image, icon: widget.icon),
-                      if (widget.badge != null)
-                        Positioned(top: 4, right: 4, child: Icon(widget.badge, color: accent, size: 20)),
-                      if (widget.progress != null)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: LinearProgressIndicator(value: widget.progress, minHeight: 4, color: accent),
-                        ),
-                    ],
+      child: RemoteMenu(
+        onSelect: widget.onTap,
+        onMenu: widget.onLongPress,
+        child: InkWell(
+          autofocus: widget.autofocus,
+          onTap: widget.onTap,
+          onLongPress: widget.onLongPress,
+          onFocusChange: (f) {
+            setState(() => _focused = f);
+            if (f) Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 150));
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedScale(
+            scale: _focused ? 1.07 : 1,
+            duration: const Duration(milliseconds: 120),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AspectRatio(
+                  aspectRatio: widget.aspect,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF262626),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: _focused ? accent : Colors.transparent, width: 3),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        NetImage(widget.image, icon: widget.icon),
+                        if (widget.badge != null)
+                          Positioned(top: 4, right: 4, child: Icon(widget.badge, color: accent, size: 20)),
+                        if (widget.progress != null)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: LinearProgressIndicator(value: widget.progress, minHeight: 4, color: accent),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                widget.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontWeight: _focused ? FontWeight.bold : FontWeight.normal),
-              ),
-              if (widget.subtitle != null)
+                const SizedBox(height: 4),
                 Text(
-                  widget.subtitle!,
-                  maxLines: 1,
+                  widget.title,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
+                  style: TextStyle(fontWeight: _focused ? FontWeight.bold : FontWeight.normal),
                 ),
-            ],
+                if (widget.subtitle != null)
+                  Text(
+                    widget.subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+              ],
+            ),
           ),
         ),
       ),

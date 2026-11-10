@@ -7,6 +7,7 @@ import '../iptv/xtream.dart';
 import '../state/app_state.dart';
 import 'browse_screen.dart';
 import 'movie_screen.dart';
+import 'remote.dart';
 import 'series_screen.dart';
 import 'widgets.dart';
 
@@ -41,7 +42,7 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: TextField(
+        title: RemoteTextField(
           autofocus: widget.autofocus,
           onChanged: _changed,
           decoration: const InputDecoration(hintText: 'Buscar canales, películas y series', border: InputBorder.none),

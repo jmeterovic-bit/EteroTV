@@ -11,6 +11,7 @@ import 'cards.dart' show showItemMenu;
 import 'movie_screen.dart';
 import 'pin.dart';
 import 'play.dart';
+import 'remote.dart';
 import 'series_screen.dart';
 import 'widgets.dart';
 
@@ -73,28 +74,38 @@ class _BrowseScreenState extends State<BrowseScreen> {
         : FocusTraversalGroup(
             child: ListView.builder(
               itemCount: cats.length,
-              itemBuilder: (_, i) => ListTile(
-                autofocus: i == 0,
-                selected: wide && _selected?.id == cats[i].id,
-                leading: switch (cats[i].id) {
-                  favoritesFolder => const Icon(Icons.star, color: Colors.amber),
-                  inProgressFolder => const Icon(Icons.play_circle_outline, color: Colors.amber),
-                  _ => null,
-                },
-                title: Text(folderTitle(cats[i])),
-                trailing: st.isProtected(cats[i])
-                    ? Icon(st.isLocked(cats[i]) ? Icons.lock : Icons.lock_open, size: 18, color: Colors.white54)
-                    : null,
-                onLongPress: isSpecialFolder(cats[i]) ? null : () => toggleProtection(context, cats[i], cats[i].name),
-                onFocusChange: wide
-                    ? (f) {
-                        if (f) setState(() => _selected = cats[i]);
-                      }
-                    : null,
-                onTap: () => wide
+              itemBuilder: (_, i) {
+                void open() => wide
                     ? setState(() => _selected = cats[i])
-                    : Navigator.push(context, MaterialPageRoute(builder: (_) => ItemsScreen(category: cats[i]))),
-              ),
+                    : Navigator.push(context, MaterialPageRoute(builder: (_) => ItemsScreen(category: cats[i])));
+                final protect = isSpecialFolder(cats[i])
+                    ? null
+                    : () => toggleProtection(context, cats[i], cats[i].name);
+                return RemoteMenu(
+                  onSelect: open,
+                  onMenu: protect,
+                  child: ListTile(
+                    autofocus: i == 0,
+                    selected: wide && _selected?.id == cats[i].id,
+                    leading: switch (cats[i].id) {
+                      favoritesFolder => const Icon(Icons.star, color: Colors.amber),
+                      inProgressFolder => const Icon(Icons.play_circle_outline, color: Colors.amber),
+                      _ => null,
+                    },
+                    title: Text(folderTitle(cats[i])),
+                    trailing: st.isProtected(cats[i])
+                        ? Icon(st.isLocked(cats[i]) ? Icons.lock : Icons.lock_open, size: 18, color: Colors.white54)
+                        : null,
+                    onLongPress: protect,
+                    onFocusChange: wide
+                        ? (f) {
+                            if (f) setState(() => _selected = cats[i]);
+                          }
+                        : null,
+                    onTap: open,
+                  ),
+                );
+              },
             ),
           );
     return Scaffold(
@@ -176,7 +187,7 @@ class _SearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-    child: TextField(
+    child: RemoteTextField(
       onChanged: onChanged,
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(

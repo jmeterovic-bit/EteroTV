@@ -108,6 +108,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: Text(_vlc == null ? 'Buscando VLC…' : (_vlc! ? 'VLC encontrado' : 'VLC no está instalado')),
           ),
           const Divider(),
+          const ListTile(
+            title: Text('Control remoto', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          const ListTile(
+            leading: Icon(Icons.settings_remote_outlined),
+            title: Text('Más opciones: mantén OK medio segundo, o el botón ≡ del control de Fire TV'),
+            subtitle: Text(
+              'Sirve en pósters, «Continuar viendo» y carpetas (proteger con PIN). Es lo mismo que mantener '
+              'presionado en el celular.',
+            ),
+          ),
+          const ListTile(
+            leading: Icon(Icons.arrow_back),
+            title: Text('Atrás vuelve a Inicio; en Inicio, Atrás dos veces cierra la app'),
+            subtitle: Text('En los buscadores, OK abre el teclado y las flechas arriba y abajo salen del campo.'),
+          ),
+          const Divider(),
           const SyncSection(),
           const Divider(),
           const ListTile(
@@ -122,7 +139,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             subtitle: const Text(
               'Para proteger una carpeta, ábrela desde «Carpetas y búsqueda» y toca el candado '
-              '(en el celular también puedes mantenerla presionada).',
+              '(o mantenla presionada: en el control, mantén OK).',
             ),
           ),
           if (s.hasPin) ...[
@@ -177,7 +194,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
-          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '0.4.0'),
+          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '0.5.0'),
         ],
       ),
     );
