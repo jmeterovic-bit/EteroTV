@@ -333,8 +333,15 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   int get _playIndex => _live ? 0 : 1;
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
-    if (e is KeyUpEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
+    // Back acts when it is released: Android goes back on key-up, so a Back
+    // handled on key-down closed the player and then the key-up also took
+    // the screen behind back to Inicio (Bravia, 2026-11-10).
+    if (k == LogicalKeyboardKey.goBack || k == LogicalKeyboardKey.browserBack) {
+      if (e is KeyUpEvent) _overlay ? _hideOverlay() : close();
+      return KeyEventResult.handled;
+    }
+    if (e is KeyUpEvent) return KeyEventResult.ignored;
     final repeat = e is KeyRepeatEvent;
     final left = k == LogicalKeyboardKey.arrowLeft;
     final right = k == LogicalKeyboardKey.arrowRight;

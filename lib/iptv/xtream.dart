@@ -422,3 +422,33 @@ List<EpgEntry> parseShortEpg(dynamic j) {
   final next = epg.where((e) => e.start.isAfter(t)).firstOrNull;
   return (null, next);
 }
+
+/// A channel's picture quality, as providers write it in the name
+/// («ES| La 1 FHD», «HBO HD», «Movistar 4K»). They send no field for it.
+enum Quality {
+  uhd('4K'),
+  fhd('FHD'),
+  hd('HD'),
+  sd('SD');
+
+  const Quality(this.label);
+  final String label;
+}
+
+final _qualityTags = <(RegExp, Quality)>[
+  for (final (p, q) in [
+    (r'4K|UHD|2160P?', Quality.uhd),
+    (r'FHD|FULL ?HD|1080[PI]?', Quality.fhd),
+    (r'HD|720P?', Quality.hd),
+    (r'SD|480P?|576[PI]?', Quality.sd),
+  ])
+    (RegExp('(?<![A-Z0-9])(?:$p)(?![A-Z0-9])', caseSensitive: false), q),
+];
+
+/// Null when the name does not say.
+Quality? qualityOf(String name) {
+  for (final (re, q) in _qualityTags) {
+    if (re.hasMatch(name)) return q;
+  }
+  return null;
+}

@@ -81,28 +81,54 @@ class _SearchScreenState extends State<SearchScreen> {
                 },
               ),
             ),
+          if (_kind == Kind.live && _qualities.length > 1)
+            QualityChips(
+              selected: _qualities.contains(_quality) ? _quality : null,
+              available: _qualities,
+              onSelected: (q) => setState(() => _quality = q),
+            ),
           Expanded(child: _list()),
         ],
       ),
     );
   }
 
-  Widget _list() => ListView.builder(
-    itemCount: _results.length,
-    itemBuilder: (_, i) {
-      final it = _results[i];
-      if (it.kind == Kind.live) return ChannelTile(item: it);
-      return ListTile(
-        leading: SizedBox(width: 40, height: 60, child: NetImage(it.icon)),
-        title: Text(it.name),
-        subtitle: Text([kindTitle(it.kind), if (it.year.isNotEmpty) it.year].join(' · ')),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => it.kind == Kind.series ? SeriesScreen(item: it) : MovieScreen(item: it),
+  /// Channels: the qualities found in the names, to search only those.
+  Quality? _quality;
+  List<Quality> get _qualities {
+    final present = {for (final it in _results) qualityOf(it.name)};
+    return [
+      for (final q in Quality.values)
+        if (present.contains(q)) q,
+    ];
+  }
+
+  List<CatalogItem> get _shown => _kind == Kind.live && _quality != null && _qualities.contains(_quality)
+      ? [
+          for (final it in _results)
+            if (qualityOf(it.name) == _quality) it,
+        ]
+      : _results;
+
+  Widget _list() {
+    final shown = _shown;
+    return ListView.builder(
+      itemCount: shown.length,
+      itemBuilder: (_, i) {
+        final it = shown[i];
+        if (it.kind == Kind.live) return ChannelTile(item: it);
+        return ListTile(
+          leading: SizedBox(width: 40, height: 60, child: NetImage(it.icon)),
+          title: Text(it.name),
+          subtitle: Text([kindTitle(it.kind), if (it.year.isNotEmpty) it.year].join(' · ')),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => it.kind == Kind.series ? SeriesScreen(item: it) : MovieScreen(item: it),
+            ),
           ),
-        ),
-      );
-    },
-  );
+        );
+      },
+    );
+  }
 }
