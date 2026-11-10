@@ -18,6 +18,7 @@ import 'sync/sync_service.dart';
 import 'ui/home_screen.dart';
 import 'ui/i18n.dart';
 import 'ui/login_screen.dart';
+import 'ui/profiles_screen.dart';
 import 'ui/remote.dart';
 import 'ui/theme.dart';
 import 'ui/tv_focus.dart';
@@ -61,6 +62,7 @@ class EteroApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final signedIn = context.select<AppState, bool>((s) => s.creds != null);
+    final chosen = context.select<AppState, bool>((s) => s.profileChosen);
     final lang = context.select<AppState, UiLang>((s) => s.uiLanguage);
     return MaterialApp(
       // A new language builds every screen again (the texts are read when
@@ -74,7 +76,11 @@ class EteroApp extends StatelessWidget {
       theme: eteroTheme(),
       actions: tvActions,
       builder: (context, child) => runningOnTv ? TvSafeArea(child: child!) : child!,
-      home: signedIn ? const HomeScreen() : const LoginScreen(),
+      home: !signedIn
+          ? const LoginScreen()
+          : chosen
+          ? const HomeScreen()
+          : const ProfilesScreen(),
     );
   }
 }

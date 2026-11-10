@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import '../iptv/xtream.dart';
 import '../logic/rematch.dart' show stripAccents;
 import 'library.dart';
+import 'profiles.dart';
 
 /// Local SQLite: the catalog (downloaded from the provider, never synced)
 /// and the library (favourites and progress).
@@ -11,7 +12,14 @@ class AppDatabase {
   final Database db;
 
   static Future<AppDatabase> open(String path) async {
-    final db = await openDatabase(path, version: 1, onCreate: (db, _) => createTables(db));
+    final db = await openDatabase(
+      path,
+      version: 2,
+      onCreate: (db, _) => createTables(db),
+      onUpgrade: (db, from, _) async {
+        if (from < 2) await _libraryByProfile(db);
+      },
+    );
     return AppDatabase(db);
   }
 
@@ -28,15 +36,37 @@ class AppDatabase {
         CREATE TABLE categories(
           kind TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, pos INTEGER,
           PRIMARY KEY(kind, id))''');
-      await db.execute('''
-        CREATE TABLE library(
-          key TEXT PRIMARY KEY, kind TEXT NOT NULL, id TEXT NOT NULL,
-          name TEXT, icon TEXT, ext TEXT, series_id TEXT, series_name TEXT,
-          season INTEGER, episode INTEGER, tmdb_id TEXT, year TEXT, epg_id TEXT,
-          favorite INTEGER, position INTEGER, duration INTEGER, watched INTEGER,
-          last_played INTEGER, updated_at INTEGER, device TEXT)''');
-      await db.execute('CREATE INDEX library_series ON library(series_id)');
+      await _createLibrary(db);
     }
+  }
+
+  static const _libraryColumns =
+      'key, kind, id, name, icon, ext, series_id, series_name, season, episode, tmdb_id, year, epg_id, '
+      'favorite, position, duration, watched, last_played, updated_at, device';
+
+  static Future<void> _createLibrary(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE library(
+        profile TEXT NOT NULL, key TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL,
+        name TEXT, icon TEXT, ext TEXT, series_id TEXT, series_name TEXT,
+        season INTEGER, episode INTEGER, tmdb_id TEXT, year TEXT, epg_id TEXT,
+        favorite INTEGER, position INTEGER, duration INTEGER, watched INTEGER,
+        last_played INTEGER, updated_at INTEGER, device TEXT,
+        PRIMARY KEY(profile, key))''');
+    await db.execute('CREATE INDEX library_series ON library(profile, series_id)');
+  }
+
+  /// 1.0.0: one library per profile. What there was goes to the first one.
+  static Future<void> _libraryByProfile(Database db) async {
+    await db.transaction((t) async {
+      await t.execute('DROP INDEX IF EXISTS library_series');
+      await t.execute('ALTER TABLE library RENAME TO library_v1');
+      await _createLibrary(t);
+      await t.execute(
+        "INSERT INTO library(profile, $_libraryColumns) SELECT '$defaultProfile', $_libraryColumns FROM library_v1",
+      );
+      await t.execute('DROP TABLE library_v1');
+    });
   }
 
   // ---- Catalog ----
@@ -132,5 +162,8 @@ class AppDatabase {
   Future<void> saveEntry(LibraryEntry e) =>
       db.insert('library', e.toRow(), conflictAlgorithm: ConflictAlgorithm.replace);
 
-  Future<void> deleteEntry(String key) => db.delete('library', where: 'key = ?', whereArgs: [key]);
+  Future<void> deleteEntry(String profile, String key) =>
+      db.delete('library', where: 'profile = ? AND key = ?', whereArgs: [profile, key]);
+
+  Future<void> deleteProfile(String profile) => db.delete('library', where: 'profile = ?', whereArgs: [profile]);
 }

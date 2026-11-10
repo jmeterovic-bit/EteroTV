@@ -6,6 +6,7 @@ import '../player/vlc.dart';
 import '../state/app_state.dart';
 import 'google_sync.dart';
 import 'pin.dart';
+import 'profiles_screen.dart';
 import 'i18n.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -122,6 +123,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         children: [
           ListTile(
+            leading: AvatarCircle(avatar: s.profile.avatar, size: 40),
+            title: Text(tr('Perfil: {0}', [AppState.profileName(s.profile)])),
+            subtitle: Text(tr('Cambiar de perfil, o agregar y editar perfiles')),
+            onTap: () => switchProfile(context),
+          ),
+          const Divider(),
+          ListTile(
             title: Text(tr('Cuenta IPTV'), style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           ListTile(
@@ -200,7 +208,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             leading: const Icon(Icons.translate),
             title: Text(tr('Idioma de la app: {0}', [s.uiLanguage.label])),
-            subtitle: Text(tr('Solo en este aparato.')),
+            subtitle: Text(tr('De este perfil, en todos tus aparatos.')),
             onTap: () async {
               final l = await _choose(tr('Idioma de la app'), UiLang.values, s.uiLanguage, (l) => l.label);
               if (l != null) await s.setUiLanguage(l);
@@ -324,7 +332,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
-          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '0.8.0'),
+          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '1.0.0'),
         ],
       ),
     );

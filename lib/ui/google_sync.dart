@@ -393,7 +393,7 @@ class SyncSection extends StatelessWidget {
             title: Text(tr('Conectar con Google')),
             subtitle: Text(
               tr(
-                'Favoritos, avance, cuenta IPTV, PIN y carpetas protegidas quedan iguales en todos tus dispositivos. Se guardan en una carpeta oculta de tu Drive que solo EteroTV puede leer.',
+                'Perfiles, favoritos, avance, cuenta IPTV, PIN y carpetas protegidas quedan iguales en todos tus dispositivos. Se guardan en una carpeta oculta de tu Drive que solo EteroTV puede leer.',
               ),
             ),
             onTap: () => connectGoogle(context),

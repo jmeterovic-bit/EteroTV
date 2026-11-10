@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:eterotv/data/database.dart';
 import 'package:eterotv/data/library.dart';
+import 'package:eterotv/data/profiles.dart';
 import 'package:eterotv/iptv/xtream.dart';
 import 'package:eterotv/platform/device.dart';
 import 'package:eterotv/player/vlc.dart';
@@ -13,6 +14,7 @@ import 'package:eterotv/ui/browse_screen.dart';
 import 'package:eterotv/ui/cards.dart';
 import 'package:eterotv/ui/home_screen.dart';
 import 'package:eterotv/ui/i18n.dart';
+import 'package:eterotv/ui/profiles_screen.dart';
 import 'package:eterotv/ui/theme.dart';
 import 'package:eterotv/ui/tv_focus.dart';
 import 'package:flutter/material.dart';
@@ -300,6 +302,76 @@ void main() {
     await open(tester, const HomeScreen());
     expect(find.text('Accueil'), findsWidgets);
     expect(find.text('Ma liste'), findsOneWidget);
+  });
+
+  testWidgets('¿Quién va a ver?: se elige perfil con el control, y se llega a agregar y administrar', (tester) async {
+    await tester.runAsync(() async {
+      state = await bigCatalog();
+      await state.addProfile('Sofía', 'unicorn');
+    });
+    tester.view.physicalSize = tv;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: state),
+          ChangeNotifierProvider.value(value: SyncService(state)),
+        ],
+        child: MaterialApp(theme: eteroTheme(), actions: tvActions, home: const ProfilesScreen()),
+      ),
+    );
+    String name() {
+      final texts = <String>[];
+      void visit(Element e) {
+        if (e.widget case Text(:final data?)) texts.add(data);
+        e.visitChildren(visit);
+      }
+
+      (focus().context! as Element).visitChildren(visit);
+      return texts.isEmpty ? '?' : texts.last;
+    }
+
+    await wait(tester);
+    expect(name(), 'Mi perfil', reason: 'empieza en el último perfil usado');
+    await press(tester, LogicalKeyboardKey.arrowRight, 'a Sofía');
+    expect(name(), 'Sofía');
+    await press(tester, LogicalKeyboardKey.arrowRight, 'a agregar');
+    expect(name(), 'Agregar perfil');
+    await press(tester, LogicalKeyboardKey.arrowDown, 'a administrar');
+    expect(name(), 'Administrar perfiles');
+    await press(tester, LogicalKeyboardKey.arrowUp, 'de vuelta a los perfiles (el de encima)');
+    expect(name(), 'Sofía');
+    await press(tester, LogicalKeyboardKey.select, 'elegir Sofía');
+    expect(state.profileChosen, isTrue);
+    expect(AppState.profileName(state.profile), 'Sofía');
+  });
+
+  testWidgets('Agregar perfil con el control: nombre, dibujo y guardar', (tester) async {
+    runningOnTv = true;
+    addTearDown(() => runningOnTv = false);
+    await open(tester, const ProfileEditor());
+    expect(focus().context!.findAncestorWidgetOfExactType<TextField>(), isNotNull, reason: '${focus()} ${label()}');
+    await press(tester, LogicalKeyboardKey.select, 'OK para escribir');
+    await tester.enterText(find.byType(TextField), 'Tomás');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await wait(tester);
+    await press(tester, LogicalKeyboardKey.arrowDown, 'a Guardar');
+    expect(label(), 'Guardar');
+    await press(tester, LogicalKeyboardKey.arrowDown, 'a los dibujos');
+    await press(tester, LogicalKeyboardKey.arrowRight, 'otro dibujo');
+    await press(tester, LogicalKeyboardKey.arrowDown, 'otra fila de dibujos');
+    await press(tester, LogicalKeyboardKey.select, 'elegir el dibujo');
+    for (var i = 0; i < 8 && label() != 'Guardar'; i++) {
+      await press(tester, LogicalKeyboardKey.arrowUp, 'subir a Guardar');
+    }
+    expect(label(), 'Guardar');
+    // (Here the editor is the only screen, so nothing is left after it closes.)
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await wait(tester);
+    final p = state.profiles.last;
+    expect(p.name, 'Tomás');
+    expect(p.avatar, isNot(avatars.first.id));
   });
 
   testWidgets('Series: subir pasa por cada fila antes de «Carpetas y búsqueda»', (tester) async {

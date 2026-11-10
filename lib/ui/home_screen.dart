@@ -7,6 +7,7 @@ import '../state/app_state.dart';
 import 'browse_screen.dart' show catalogItemOf;
 import 'cards.dart';
 import 'lost_screen.dart';
+import 'profiles_screen.dart';
 import 'rows.dart';
 import 'search_screen.dart';
 import 'settings_screen.dart';
@@ -138,10 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onDestinationSelected: _select,
             labelType: NavigationRailLabelType.all,
             indicatorColor: accent.withValues(alpha: 0.25),
-            leading: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Image.asset('assets/icon.png', width: 40, height: 40),
-            ),
+            leading: const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: ProfileButton()),
             trailing: Padding(
               padding: const EdgeInsets.only(top: 12),
               child: IconButton(
@@ -238,6 +236,7 @@ class _HomeTabState extends State<HomeTab> {
           ],
         ),
         actions: [
+          if (!wide) const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: ProfileButton(size: 32)),
           if (!wide)
             IconButton(
               tooltip: tr('Ajustes'),
