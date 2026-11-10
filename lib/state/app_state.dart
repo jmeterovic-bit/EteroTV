@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/database.dart';
 import '../data/library.dart';
+import '../data/profiles.dart';
 import '../iptv/xtream.dart';
 import '../logic/progress.dart';
 import '../logic/rematch.dart';
@@ -39,26 +40,151 @@ class AppState extends ChangeNotifier {
   static const _audioKey = 'audioLang';
   static const _subsKey = 'subLang';
 
-  /// The app's language (this device). Changing it rebuilds the whole app.
+  /// The app's language, of the profile in use. Changing it rebuilds the
+  /// whole app.
   UiLang get uiLanguage => uiLang;
-  Future<void> setUiLanguage(UiLang l) async {
-    uiLang = l;
-    await prefs.setString(_uiLangKey, l.name);
-    notifyListeners();
-  }
+  Future<void> setUiLanguage(UiLang l) => _editProfile((p) => p.lang = l.name);
 
   TrackLang get audioLang => vlc.audioLang;
   TrackLang get subLang => vlc.subLang;
-  Future<void> setAudioLang(TrackLang l) async {
-    vlc.audioLang = l;
-    await prefs.setString(_audioKey, l.name);
+  Future<void> setAudioLang(TrackLang l) => _editProfile((p) => p.audio = l.name);
+  Future<void> setSubLang(TrackLang l) => _editProfile((p) => p.subs = l.name);
+
+  // ---- Profiles (1.0.0) ----
+
+  static const _profilesKey = 'profiles';
+  static const _lastProfileKey = 'lastProfile';
+  static const maxProfiles = 5;
+
+  final Map<String, Profile> _profiles = {};
+
+  /// The profile in use. [profileChosen] is false until someone picks one
+  /// in «¿Quién va a ver?» (each time the app opens).
+  String profileId = defaultProfile;
+  bool profileChosen = false;
+
+  /// The profiles, oldest first.
+  List<Profile> get profiles {
+    if (_profiles.values.every((p) => p.deleted)) _profiles[defaultProfile] = Profile(id: defaultProfile);
+    return _profiles.values.where((p) => !p.deleted).toList()..sort((a, b) => _order(a.id, b.id));
+  }
+
+  static int _order(String a, String b) => a == defaultProfile ? -1 : (b == defaultProfile ? 1 : a.compareTo(b));
+
+  Profile get profile => _profiles[profileId] ?? profiles.first;
+
+  /// The name to show: the first profile may have none yet.
+  static String profileName(Profile p) => p.name.isNotEmpty ? p.name : tr('Mi perfil');
+
+  void _loadProfiles() {
+    _profiles.clear();
+    try {
+      for (final j in (jsonDecode(prefs.getString(_profilesKey) ?? '[]') as List)) {
+        final p = Profile.fromJson(Map<String, dynamic>.from(j as Map));
+        _profiles[p.id] = p;
+      }
+    } catch (_) {}
+    if (profiles.isEmpty) {
+      // Before 1.0.0: one profile with what this device had, dated 0 so any
+      // other device's profiles win.
+      _profiles[defaultProfile] = Profile(
+        id: defaultProfile,
+        lang: prefs.getString(_uiLangKey) ?? UiLang.es.name,
+        audio: prefs.getString(_audioKey) ?? TrackLang.original.name,
+        subs: prefs.getString(_subsKey) ?? TrackLang.none.name,
+      );
+    }
+    final last = prefs.getString(_lastProfileKey);
+    profileId = _profiles[last]?.deleted == false ? last! : profiles.first.id;
+    _applyProfile();
+  }
+
+  Future<void> _saveProfiles() async {
+    await prefs.setString(_profilesKey, jsonEncode([for (final p in _profiles.values) p.toJson()]));
+    _changed();
+  }
+
+  /// The profile's languages go to the app and the player.
+  void _applyProfile() {
+    final p = profile;
+    uiLang = UiLang.fromName(p.lang);
+    vlc
+      ..audioLang = TrackLang.fromName(p.audio, TrackLang.original)
+      ..subLang = TrackLang.fromName(p.subs, TrackLang.none);
+  }
+
+  Future<void> _editProfile(void Function(Profile) edit, [String? id]) async {
+    final p = _profiles[id ?? profileId];
+    if (p == null) return;
+    edit(p);
+    p.updatedAt = _now;
+    await _saveProfiles();
+    if (p.id == profileId) _applyProfile();
     notifyListeners();
   }
 
-  Future<void> setSubLang(TrackLang l) async {
-    vlc.subLang = l;
-    await prefs.setString(_subsKey, l.name);
+  Future<void> selectProfile(String id) async {
+    if (_profiles[id] == null || _profiles[id]!.deleted) return;
+    profileId = id;
+    profileChosen = true;
+    await prefs.setString(_lastProfileKey, id);
+    _applyProfile();
     notifyListeners();
+    unawaited(_findLost());
+  }
+
+  /// Back to «¿Quién va a ver?».
+  void leaveProfile() {
+    profileChosen = false;
+    notifyListeners();
+  }
+
+  /// A new profile, with the languages of the one in use. Null when there
+  /// are already [maxProfiles].
+  Future<Profile?> addProfile(String name, String avatar) async {
+    if (profiles.length >= maxProfiles) return null;
+    final from = profile;
+    var t = _now;
+    while (_profiles.containsKey('p${t.toRadixString(36)}')) {
+      t++;
+    }
+    final p = Profile(
+      id: 'p${t.toRadixString(36)}',
+      name: name.trim(),
+      avatar: avatar,
+      lang: from.lang,
+      audio: from.audio,
+      subs: from.subs,
+      updatedAt: _now,
+    );
+    _profiles[p.id] = p;
+    await _saveProfiles();
+    notifyListeners();
+    return p;
+  }
+
+  Future<void> editProfile(String id, {String? name, String? avatar}) => _editProfile((p) {
+    if (name != null) p.name = name.trim();
+    if (avatar != null) p.avatar = avatar;
+  }, id);
+
+  /// Removes a profile and its favourites and progress, on every device.
+  /// The last profile stays.
+  Future<void> deleteProfile(String id) async {
+    if (profiles.length <= 1 || _profiles[id] == null) return;
+    await _editProfile((p) => p.deleted = true, id);
+    await _dropProfileData(id);
+    if (profileId == id) {
+      profileId = profiles.first.id;
+      profileChosen = false;
+      _applyProfile();
+    }
+    notifyListeners();
+  }
+
+  Future<void> _dropProfileData(String id) async {
+    _libs.remove(id);
+    await db.deleteProfile(id);
   }
 
   Future<void> setAndroidPlayer(AndroidPlayer p) async {
@@ -72,7 +198,11 @@ class AppState extends ChangeNotifier {
   Credentials? creds;
   XtreamClient? get client => creds == null ? null : XtreamClient(creds!);
 
-  final Map<String, LibraryEntry> _library = {};
+  /// Each profile's library, by [LibraryEntry.key].
+  final Map<String, Map<String, LibraryEntry>> _libs = {};
+
+  /// The library of the profile in use.
+  Map<String, LibraryEntry> get _library => _libs.putIfAbsent(profileId, () => {});
 
   bool refreshing = false;
   String refreshStep = '';
@@ -96,15 +226,12 @@ class AppState extends ChangeNotifier {
       creds = null;
     }
     for (final e in await db.library()) {
-      _library[e.key] = e;
+      _libs.putIfAbsent(e.profile, () => {})[e.key] = e;
     }
     await _loadLocks();
     final v = vlc;
     if (v is AndroidVlc) v.player = AndroidPlayer.fromName(prefs.getString(_playerKey));
-    uiLang = UiLang.fromName(prefs.getString(_uiLangKey));
-    v
-      ..audioLang = TrackLang.fromName(prefs.getString(_audioKey), TrackLang.original)
-      ..subLang = TrackLang.fromName(prefs.getString(_subsKey), TrackLang.none);
+    _loadProfiles();
     notifyListeners();
     final last = lastRefresh;
     if (creds != null && (last == null || DateTime.now().difference(last) > refreshEvery)) {
@@ -277,7 +404,7 @@ class AppState extends ChangeNotifier {
   // ---- Library ----
 
   @visibleForTesting
-  void debugAdd(LibraryEntry e) => _library[e.key] = e;
+  void debugAdd(LibraryEntry e) => _libs.putIfAbsent(e.profile, () => {})[e.key] = e;
 
   LibraryEntry? entry(Kind kind, String id) => _library[LibraryEntry.keyOf(kind, id)];
 
@@ -443,6 +570,7 @@ class AppState extends ChangeNotifier {
         ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
   Future<void> _save(LibraryEntry e) async {
+    e.profile = profileId;
     _library[e.key] = e;
     await db.saveEntry(e);
     _changed();
@@ -450,9 +578,9 @@ class AppState extends ChangeNotifier {
 
   Future<void> _remove(String key, {int? at}) async {
     _library.remove(key);
-    await db.deleteEntry(key);
+    await db.deleteEntry(profileId, key);
     // Remember the deletion, so other devices drop it too (and do not bring it back).
-    final dead = _deleted..[key] = at ?? _now;
+    final dead = _deleted..[_deadKey(profileId, key)] = at ?? _now;
     await prefs.setString(_deletedKey, jsonEncode(dead));
     _changed();
   }
@@ -463,7 +591,16 @@ class AppState extends ChangeNotifier {
   static const _credsAtKey = 'credsUpdatedAt';
   static const _pinAtKey = 'pinUpdatedAt';
   static const _lockedAtKey = 'lockedUpdatedAt';
-  static const snapshotSchema = 1;
+
+  /// 2 (1.0.0) adds profiles; a snapshot from 1 is the first profile's.
+  static const snapshotSchema = 2;
+
+  /// A deletion's key: the first profile keeps the old form.
+  static String _deadKey(String profile, String key) => profile == defaultProfile ? key : '$profile|$key';
+  static (String, String) _splitDead(String k) {
+    final i = k.indexOf('|');
+    return i < 0 ? (defaultProfile, k) : (k.substring(0, i), k.substring(i + 1));
+  }
 
   /// Called after every local change to the library or the shared settings
   /// (the sync service uploads a few seconds later).
@@ -490,7 +627,11 @@ class AppState extends ChangeNotifier {
     'schema': snapshotSchema,
     'app': 'eterotv',
     'device': deviceId,
-    'library': [for (final e in _library.values) e.toRow()],
+    'library': [
+      for (final lib in _libs.values)
+        for (final e in lib.values) e.toRow(),
+    ],
+    'profiles': [for (final p in _profiles.values) p.toJson()],
     'deleted': _deleted,
     'creds': {'value': creds?.toJson(), 'at': _settingAt(_credsAtKey, creds != null)},
     'pin': {'value': _pin, 'at': _settingAt(_pinAtKey, _pin != null)},
@@ -505,10 +646,31 @@ class AppState extends ChangeNotifier {
   /// Takes what is newer in another device's snapshot. Returns how many
   /// things changed here.
   Future<int> mergeSnapshot(Map<String, dynamic> data) async {
-    if (data['schema'] != snapshotSchema) return 0; // written by a newer version
+    final schema = data['schema'];
+    if (schema != snapshotSchema && schema != 1) return 0; // written by a newer version
     var n = 0;
     _merging = true;
     try {
+      // Profiles first: the newest change of each wins; a removed one takes
+      // its library with it.
+      var profilesChanged = false;
+      for (final raw in (data['profiles'] as List?) ?? const []) {
+        final p = Profile.fromJson(Map<String, dynamic>.from(raw as Map));
+        final local = _profiles[p.id];
+        if (local != null && local.updatedAt >= p.updatedAt) continue;
+        _profiles[p.id] = p;
+        profilesChanged = true;
+        if (p.deleted) await _dropProfileData(p.id);
+        n++;
+      }
+      if (profilesChanged) {
+        await prefs.setString(_profilesKey, jsonEncode([for (final p in _profiles.values) p.toJson()]));
+        if (_profiles[profileId]?.deleted != false) {
+          profileId = profiles.first.id;
+          profileChosen = false;
+        }
+        _applyProfile();
+      }
       // Deletions first, so a deleted favourite is not brought back.
       final dead = _deleted;
       var deadChanged = false;
@@ -517,20 +679,23 @@ class AppState extends ChangeNotifier {
         if (at <= (dead[key] ?? 0)) continue;
         dead[key as String] = at;
         deadChanged = true;
-        final local = _library[key];
+        final (profile, k) = _splitDead(key);
+        final local = _libs[profile]?[k];
         if (local != null && local.updatedAt <= at) {
-          _library.remove(key);
-          await db.deleteEntry(key);
+          _libs[profile]!.remove(k);
+          await db.deleteEntry(profile, k);
           n++;
         }
       }
       if (deadChanged) await prefs.setString(_deletedKey, jsonEncode(dead));
       for (final raw in (data['library'] as List?) ?? const []) {
         final e = LibraryEntry.fromRow(Map<String, Object?>.from(raw as Map));
-        if (e.updatedAt <= (dead[e.key] ?? 0)) continue;
-        final local = _library[e.key];
+        if (_profiles[e.profile]?.deleted ?? false) continue;
+        if (e.updatedAt <= (dead[_deadKey(e.profile, e.key)] ?? 0)) continue;
+        final lib = _libs.putIfAbsent(e.profile, () => {});
+        final local = lib[e.key];
         if (local != null && local.updatedAt >= e.updatedAt) continue;
-        _library[e.key] = e;
+        lib[e.key] = e;
         await db.saveEntry(e);
         n++;
       }

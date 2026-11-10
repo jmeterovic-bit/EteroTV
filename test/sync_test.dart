@@ -1,13 +1,16 @@
 // Two devices sharing "my library" through an in-memory Drive.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:eterotv/data/database.dart';
+import 'package:eterotv/data/profiles.dart';
 import 'package:eterotv/iptv/xtream.dart';
 import 'package:eterotv/player/vlc.dart';
 import 'package:eterotv/state/app_state.dart';
 import 'package:eterotv/sync/drive_store.dart';
 import 'package:eterotv/sync/google_auth.dart';
 import 'package:eterotv/sync/sync_service.dart';
+import 'package:eterotv/ui/i18n.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -172,5 +175,80 @@ void main() {
     expect(await a.mergeSnapshot(old), 0);
     expect(a.entry(Kind.movie, 'm1'), isNull);
     expect(a.exportSnapshot()['deleted'], {'movie:m1': at});
+  });
+
+  test('profiles: each one has its own library, and they travel with it', () async {
+    final drive = _MemoryDrive();
+    final a = await device('A');
+    final syncA = SyncService(a, auth: _SignedIn(), remote: drive);
+    await a.editProfile(a.profileId, name: 'Jose');
+    await a.toggleFavorite(movie); // Jose's
+    final kid = (await a.addProfile('Sofía', 'unicorn'))!;
+    await a.selectProfile(kid.id);
+    expect(a.isFavorite(Kind.movie, 'm1'), isFalse, reason: 'Sofía no tiene los favoritos de Jose');
+    await a.setMovieWatched(movie, true);
+    await a.setUiLanguage(UiLang.fr);
+    expect(uiLang, UiLang.fr);
+    await syncA.syncNow();
+
+    final b = await device('B');
+    await SyncService(b, auth: _SignedIn(), remote: drive).syncNow();
+    expect([for (final p in b.profiles) AppState.profileName(p)], ['Jose', 'Sofía']);
+    await b.selectProfile(b.profiles.first.id);
+    expect(b.isFavorite(Kind.movie, 'm1'), isTrue);
+    expect(b.entry(Kind.movie, 'm1')!.watched, isFalse);
+    expect(uiLang, UiLang.es);
+    await b.selectProfile(kid.id);
+    expect(b.entry(Kind.movie, 'm1')!.watched, isTrue);
+    expect(b.isFavorite(Kind.movie, 'm1'), isFalse);
+    expect(uiLang, UiLang.fr);
+    uiLang = UiLang.es;
+
+    // Removing Sofía on A removes her (and what she watched) on B.
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    await a.deleteProfile(kid.id);
+    expect(a.profiles.length, 1);
+    await syncA.syncNow();
+    await SyncService(b, auth: _SignedIn(), remote: drive).syncNow();
+    expect(b.profiles.map((p) => p.name), ['Jose']);
+    expect(b.profileChosen, isFalse, reason: 'B estaba en el perfil borrado: vuelve a «¿Quién va a ver?»');
+    expect(b.profileId, b.profiles.first.id);
+    expect(await b.db.library(), hasLength(1));
+  });
+
+  test('a snapshot from before profiles (schema 1) goes to the first profile', () async {
+    final a = await device('A');
+    await a.addProfile('Otra', 'cat');
+    final n = await a.mergeSnapshot({
+      'schema': 1,
+      'library': [
+        {'key': 'movie:m1', 'kind': 'movie', 'id': 'm1', 'name': 'Dune', 'favorite': 1, 'updated_at': 5},
+      ],
+    });
+    expect(n, 1);
+    await a.selectProfile(defaultProfile);
+    expect(a.isFavorite(Kind.movie, 'm1'), isTrue);
+  });
+
+  test('the library from before 1.0.0 moves to the first profile', () async {
+    final path = '${Directory.systemTemp.createTempSync('etero').path}/old.db';
+    final old = await databaseFactoryFfi.openDatabase(path);
+    await old.execute('''
+      CREATE TABLE library(
+        key TEXT PRIMARY KEY, kind TEXT NOT NULL, id TEXT NOT NULL,
+        name TEXT, icon TEXT, ext TEXT, series_id TEXT, series_name TEXT,
+        season INTEGER, episode INTEGER, tmdb_id TEXT, year TEXT, epg_id TEXT,
+        favorite INTEGER, position INTEGER, duration INTEGER, watched INTEGER,
+        last_played INTEGER, updated_at INTEGER, device TEXT)''');
+    await old.execute('CREATE INDEX library_series ON library(series_id)');
+    await old.insert('library', {'key': 'movie:m1', 'kind': 'movie', 'id': 'm1', 'name': 'Dune', 'favorite': 1});
+    await old.setVersion(1);
+    await old.close();
+    databaseFactory = databaseFactoryFfi;
+    final db = await AppDatabase.open(path);
+    final rows = await db.library();
+    expect(rows.single.profile, defaultProfile);
+    expect(rows.single.favorite, isTrue);
+    await db.db.close();
   });
 }

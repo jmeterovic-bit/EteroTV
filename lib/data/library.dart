@@ -1,5 +1,6 @@
 import '../iptv/xtream.dart';
 import '../ui/i18n.dart';
+import 'profiles.dart';
 
 /// One entry of "my library": a favourite and/or something with progress.
 /// This is the only data that will be synced between devices (stage 2).
@@ -24,6 +25,7 @@ class LibraryEntry {
     this.lastPlayed = 0,
     required this.updatedAt,
     this.device = '',
+    this.profile = defaultProfile,
   });
 
   final Kind kind;
@@ -49,6 +51,9 @@ class LibraryEntry {
   /// ms since epoch of the last change; the newest change wins when syncing.
   int updatedAt;
   String device;
+
+  /// Whose entry it is ([Profile.id]).
+  String profile;
 
   String get key => keyOf(kind, id);
   static String keyOf(Kind kind, String id) => '${kind.name}:$id';
@@ -78,6 +83,7 @@ class LibraryEntry {
     'last_played': lastPlayed,
     'updated_at': updatedAt,
     'device': device,
+    'profile': profile,
   };
 
   static LibraryEntry fromRow(Map<String, Object?> r) => LibraryEntry(
@@ -100,6 +106,8 @@ class LibraryEntry {
     lastPlayed: (r['last_played'] ?? 0) as int,
     updatedAt: (r['updated_at'] ?? 0) as int,
     device: (r['device'] ?? '') as String,
+    // Entries from before 1.0.0 (and their snapshots) are the first profile's.
+    profile: (r['profile'] ?? defaultProfile) as String,
   );
 
   static LibraryEntry fromCatalog(CatalogItem c, {required int now, required String device}) => LibraryEntry(

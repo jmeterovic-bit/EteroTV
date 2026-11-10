@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.0.0
+- Perfiles, como en Netflix: al abrir la app aparece «¿Quién va a ver?». Cada perfil tiene sus favoritos, «Seguir viendo», lo visto, el idioma de la app y el de audio y subtítulos. La cuenta IPTV, el PIN y las carpetas protegidas son de todos.
+- Hasta 5 perfiles. «Agregar perfil» y «Administrar perfiles» (nombre, dibujo, eliminar). Se cambia de perfil con el dibujo de arriba del menú izquierdo, o en Ajustes → Perfil.
+- 32 dibujos para elegir (animales, magos, hadas, sirenas, superhéroes, dragones, robots…). Son los emoji del sistema: los personajes de Disney, DreamWorks, Star Wars o Harry Potter tienen dueño y no se pueden incluir.
+- Los perfiles se sincronizan por Google Drive. Lo que había antes queda en el primer perfil («Mi perfil»; se le puede poner nombre). Eliminar un perfil lo borra, con lo suyo, en todos los aparatos.
+
 ## 0.8.0
 - Idioma de la app: español, inglés o francés (Ajustes → Idioma, solo en ese aparato).
 - Idioma de audio y subtítulos:
