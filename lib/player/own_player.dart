@@ -200,7 +200,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   void initState() {
     super.initState();
     widget.onOpen?.call(close);
-    tvFullScreen.value = true;
+    enterTvFullScreen();
     _subs
       ..add(
         _player.stream.position.listen((p) {
@@ -279,7 +279,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _guideTimer?.cancel();
     _focus.dispose();
     _player.dispose();
-    tvFullScreen.value = false;
+    leaveTvFullScreen();
     if (Platform.isAndroid) SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }

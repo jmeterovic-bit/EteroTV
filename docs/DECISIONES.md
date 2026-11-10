@@ -91,3 +91,4 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | 2026-11-10 | v1.0.0: perfiles como Netflix («¿Quién va a ver?» al abrir, hasta 5, cada uno con su biblioteca e idiomas, sincronizados), dibujos con emoji. |
 | 2026-11-10 | v1.1.0 (prueba del reproductor propio): media_kit por defecto, VLC/Just Player/MX Player como alternativa por aparato, idiomas del perfil en todos los aparatos, decodificación por hardware opcional, imagen propia de perfil (celular y PC). |
 | 2026-11-10 | v1.1.1: Atrás en el reproductor actúa al soltar la tecla (antes el soltar llevaba a Inicio en la Bravia); calidad de canales (marca y filtro). |
+| 2026-11-10 | v1.1.2: pantalla completa del reproductor con contador y cambio al final del frame (cambiarla durante build/dispose dejaba el `ValueListenableBuilder` sucio y los márgenes pegados tras «Ver siguiente» en la Fire TV). Test en `remote_test.dart`. |

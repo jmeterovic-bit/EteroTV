@@ -381,7 +381,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
-          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '1.1.1'),
+          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '1.1.2'),
         ],
       ),
     );

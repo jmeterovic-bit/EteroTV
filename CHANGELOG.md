@@ -1,5 +1,8 @@
 # Cambios
 
+## 1.1.2
+- TV: después de «Ver siguiente», los márgenes grises podían quedar pegados alrededor del video hasta cerrar la app (visto en la Fire TV). Ahora el reproductor siempre ocupa toda la pantalla.
+
 ## 1.1.1
 - TV: Atrás al salir del reproductor vuelve a donde estabas (por ejemplo «Canales»), no a Inicio.
 - Canales: la calidad que trae el nombre (4K, FHD, HD, SD) aparece como una marca de color, y arriba de la lista se puede elegir ver solo una («Todas · 4K · FHD · HD · SD»). También en Buscar, con «Canales» elegido.
