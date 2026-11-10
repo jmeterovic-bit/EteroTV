@@ -6,6 +6,7 @@ import '../state/app_state.dart';
 import '../sync/google_auth.dart';
 import '../sync/sync_service.dart';
 import 'google_sync.dart';
+import 'remote.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -76,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
                   const Text('Escribe los datos que te dio tu proveedor de IPTV.', textAlign: TextAlign.center),
                   const SizedBox(height: 24),
-                  TextField(
+                  RemoteTextField(
                     controller: _server,
                     autofocus: true,
                     keyboardType: TextInputType.url,
@@ -88,14 +89,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  RemoteTextField(
                     controller: _user,
                     autofillHints: const [AutofillHints.username],
                     textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(labelText: 'Usuario', border: OutlineInputBorder()),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  RemoteTextField(
                     controller: _pass,
                     obscureText: !_show,
                     autofillHints: const [AutofillHints.password],
