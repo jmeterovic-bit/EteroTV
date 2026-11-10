@@ -341,4 +341,7 @@ const fr = <String, String>{
   '◀ ▶: elegir · OK: usar · Atrás: ocultar': '◀ ▶ : choisir · OK : utiliser · Retour : masquer',
   '▲: línea de tiempo · ◀ ▶: elegir o mover 10 s · OK: usar · Atrás: ocultar':
       '▲ : barre de temps · ◀ ▶ : choisir ou déplacer de 10 s · OK : utiliser · Retour : masquer',
+  'Lo nuevo': 'Nouveautés',
+  'NUEVA TEMPORADA': 'NOUVELLE SAISON',
+  'NUEVO CAPÍTULO': 'NOUVEL ÉPISODE',
 };

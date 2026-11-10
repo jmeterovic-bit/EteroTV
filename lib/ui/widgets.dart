@@ -20,6 +20,8 @@ class FocusCard extends StatefulWidget {
     this.aspect = 2 / 3,
     this.autofocus = false,
     this.badge,
+    this.tag,
+    this.tagColor = accent,
     required this.onTap,
     this.onLongPress,
   });
@@ -33,6 +35,10 @@ class FocusCard extends StatefulWidget {
   final double aspect;
   final bool autofocus;
   final IconData? badge;
+
+  /// A word in the top-left corner («NUEVA TEMPORADA»).
+  final String? tag;
+  final Color tagColor;
   final VoidCallback onTap;
 
   /// Long press (phone) or holding OK / the menu key (remote) opens the item's menu.
@@ -80,6 +86,28 @@ class _FocusCardState extends State<FocusCard> {
                         NetImage(widget.image, icon: widget.icon),
                         if (widget.badge != null)
                           Positioned(top: 4, right: 4, child: Icon(widget.badge, color: accent, size: 20)),
+                        if (widget.tag != null)
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: Container(
+                              color: widget.tagColor,
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+                              child: Text(
+                                widget.tag!,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ),
                         if (widget.progress != null)
                           Positioned(
                             left: 0,

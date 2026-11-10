@@ -13,6 +13,7 @@ import '../data/profiles.dart';
 import '../iptv/xtream.dart';
 import '../logic/progress.dart';
 import '../logic/rematch.dart';
+import '../logic/series_news.dart';
 import '../player/own_player.dart';
 import '../player/vlc.dart';
 import '../ui/i18n.dart';
@@ -273,12 +274,16 @@ class AppState extends ChangeNotifier {
     final o = own;
     if (o is OwnPlayer) o.decode = videoDecode;
     _loadProfiles();
+    _loadNews();
     notifyListeners();
     final last = lastRefresh;
     if (creds != null && (last == null || DateTime.now().difference(last) > refreshEvery)) {
       unawaited(refreshCatalog());
     } else if (creds != null) {
       unawaited(_findLost());
+      // First run of 1.1.0: take note of the series now, so the next list
+      // refresh can already tell what is new.
+      if (_known.isEmpty) unawaited(checkSeriesNews());
     }
   }
 
@@ -343,6 +348,7 @@ class AppState extends ChangeNotifier {
       await prefs.setInt('lastRefresh', _now);
       await _refreshHidden();
       await _findLost();
+      unawaited(checkSeriesNews());
     } catch (e) {
       error = e.toString();
     } finally {
@@ -816,6 +822,120 @@ class AppState extends ChangeNotifier {
     x.close();
   }
 
+  // ---- Lo nuevo (series with a new season or episodes) ----
+
+  static const _knownKey = 'seriesKnown';
+  static const _newsKey = 'seriesNews';
+  static const maxNewsChecks = 80;
+
+  /// What this device last saw of each series someone watched.
+  final Map<String, SeriesShape> _known = {};
+  final Map<String, SeriesNews> _news = {};
+  final Map<String, CatalogItem> _newsItems = {};
+  bool _checkingNews = false;
+
+  void _loadNews() {
+    try {
+      final k = jsonDecode(prefs.getString(_knownKey) ?? '{}') as Map<String, dynamic>;
+      _known.addAll({for (final e in k.entries) e.key: SeriesShape.fromJson(e.value)});
+      final n = jsonDecode(prefs.getString(_newsKey) ?? '{}') as Map<String, dynamic>;
+      _news.addAll({for (final e in n.entries) e.key: SeriesNews.fromJson(e.value as Map<String, dynamic>)});
+    } catch (_) {}
+    unawaited(_loadNewsItems());
+  }
+
+  Future<void> _saveNews() async {
+    await prefs.setString(_knownKey, jsonEncode({for (final e in _known.entries) e.key: e.value.toJson()}));
+    await prefs.setString(_newsKey, jsonEncode({for (final e in _news.entries) e.key: e.value.toJson()}));
+  }
+
+  Future<void> _loadNewsItems() async {
+    for (final id in _news.keys) {
+      if (_newsItems.containsKey(id)) continue;
+      final it = await db.item(Kind.series, id);
+      if (it != null) _newsItems[id] = it;
+    }
+    notifyListeners();
+  }
+
+  /// Series a profile watched (an episode played or marked), newest first.
+  List<String> _watchedSeries(Iterable<LibraryEntry> lib) {
+    final last = <String, int>{};
+    for (final e in lib) {
+      if (e.kind != Kind.episode || e.seriesId.isEmpty || (e.lastPlayed == 0 && !e.watched)) continue;
+      final t = e.lastPlayed > (last[e.seriesId] ?? -1) ? e.lastPlayed : last[e.seriesId]!;
+      last[e.seriesId] = t;
+    }
+    return last.keys.toList()..sort((a, b) => last[b]!.compareTo(last[a]!));
+  }
+
+  /// «Lo nuevo» of the profile in use: series from its history with a new
+  /// season or new episodes, newest find first.
+  List<(CatalogItem, NewsKind)> get whatsNew {
+    final mine = _watchedSeries(_library.values).toSet();
+    final out = [
+      for (final e in _news.entries)
+        if (mine.contains(e.key) && _newsItems[e.key] != null) (e.key, e.value),
+    ]..sort((a, b) => b.$2.at.compareTo(a.$2.at));
+    return [for (final (id, n) in out) (_newsItems[id]!, n.kind)];
+  }
+
+  NewsKind? newsOf(String seriesId) => _news[seriesId]?.kind;
+
+  /// After a list refresh: asks the provider for the seasons of the series
+  /// any profile watched (the most recent [maxNewsChecks]) and compares them
+  /// with what this device saw last time. [fetch] is for tests.
+  Future<void> checkSeriesNews({Future<SeriesInfo> Function(String id)? fetch}) async {
+    if (_checkingNews) return;
+    _checkingNews = true;
+    try {
+      final now = _now;
+      _news.removeWhere((_, n) => now - n.at > SeriesNews.keepFor.inMilliseconds);
+      final ids = <String>{for (final lib in _libs.values) ..._watchedSeries(lib.values)}.take(maxNewsChecks);
+      final x = fetch == null ? client : null;
+      Future<SeriesInfo> get(String id) => fetch != null ? fetch(id) : x!.seriesInfo(id);
+      if (fetch == null && x == null) return;
+      final queue = ids.toList();
+      Future<void> worker() async {
+        while (queue.isNotEmpty) {
+          final id = queue.removeLast();
+          try {
+            final shape = SeriesShape.of(await get(id).timeout(const Duration(seconds: 20)));
+            final before = _known[id];
+            final kind = newsBetween(before, shape);
+            if (kind != null) {
+              final old = _news[id];
+              // Keep the older "before" if it was already new and not seen yet.
+              _news[id] = SeriesNews(
+                old?.kind == NewsKind.season ? NewsKind.season : kind,
+                old?.before ?? before!,
+                now,
+              );
+            }
+            if (shape.lastSeason > 0) _known[id] = shape;
+          } catch (_) {
+            // Not answered: try again next refresh.
+          }
+        }
+      }
+
+      await Future.wait([for (var i = 0; i < 4; i++) worker()]);
+      x?.close();
+      await _saveNews();
+      await _loadNewsItems();
+    } finally {
+      _checkingNews = false;
+    }
+  }
+
+  /// Playing a new episode clears the series' mark.
+  void _seenNews(LibraryEntry e) {
+    final n = _news[e.seriesId];
+    if (e.kind != Kind.episode || n == null || !n.seenWith(e.season, e.episode)) return;
+    _news.remove(e.seriesId);
+    unawaited(_saveNews());
+  }
+
   // ---- Guide (live channels) ----
 
   final Map<String, (DateTime, Future<List<EpgEntry>>)> _epg = {};
@@ -939,6 +1059,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     _upNext = null;
+    _seenNews(e);
     var nearEndFired = false;
     final pl = player;
     final r = await pl.play(

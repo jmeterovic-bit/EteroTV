@@ -340,4 +340,7 @@ const en = <String, String>{
   '◀ ▶: elegir · OK: usar · Atrás: ocultar': '◀ ▶: choose · OK: use · Back: hide',
   '▲: línea de tiempo · ◀ ▶: elegir o mover 10 s · OK: usar · Atrás: ocultar':
       '▲: timeline · ◀ ▶: choose or move 10 s · OK: use · Back: hide',
+  'Lo nuevo': 'What\'s new',
+  'NUEVA TEMPORADA': 'NEW SEASON',
+  'NUEVO CAPÍTULO': 'NEW EPISODE',
 };

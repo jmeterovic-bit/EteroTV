@@ -1,6 +1,7 @@
 // Seen / not seen, "Seguir viendo" and folders with PIN, on AppState.
 import 'package:eterotv/data/database.dart';
 import 'package:eterotv/iptv/xtream.dart';
+import 'package:eterotv/logic/series_news.dart';
 import 'package:eterotv/player/vlc.dart';
 import 'package:eterotv/state/app_state.dart';
 import 'package:eterotv/ui/series_screen.dart';
@@ -58,6 +59,50 @@ void main() {
     await s.setUseOwnPlayer(false);
     expect(s.useOwnPlayer, isFalse);
     expect(s.player, same(s.vlc));
+  });
+
+  test('«Lo nuevo»: a watched series with new episodes, then a new season; watching clears it', () async {
+    vlc.next = PlayResult(positionSecs: 2900, durationSecs: 3000);
+    await s.playEpisode(series, ep(1, 3));
+    var shown = SeriesInfo({
+      1: [ep(1, 1), ep(1, 2), ep(1, 3)],
+    }, '');
+    Future<SeriesInfo> fetch(String id) async => shown;
+
+    await s.checkSeriesNews(fetch: fetch);
+    expect(s.whatsNew, isEmpty, reason: 'the first look only takes note');
+
+    shown = SeriesInfo({
+      1: [ep(1, 1), ep(1, 2), ep(1, 3), ep(1, 4)],
+    }, '');
+    await s.checkSeriesNews(fetch: fetch);
+    expect(s.whatsNew.map((n) => (n.$1.id, n.$2)), [('f', NewsKind.episode)]);
+
+    shown = SeriesInfo({
+      1: [ep(1, 1), ep(1, 2), ep(1, 3), ep(1, 4)],
+      2: [ep(2, 1)],
+    }, '');
+    await s.checkSeriesNews(fetch: fetch);
+    expect(s.whatsNew.single.$2, NewsKind.season);
+
+    await s.playEpisode(series, ep(1, 2));
+    expect(s.whatsNew, isNotEmpty, reason: 'an old episode is not the new part');
+    await s.playEpisode(series, ep(1, 4));
+    expect(s.whatsNew, isEmpty);
+  });
+
+  test('«Lo nuevo» only shows series of the profile in use', () async {
+    vlc.next = PlayResult(positionSecs: 100, durationSecs: 3000);
+    await s.playEpisode(series, ep(1, 1));
+    var n = 1;
+    Future<SeriesInfo> fetch(String id) async => SeriesInfo({1: List.generate(n, (i) => ep(1, i + 1))}, '');
+    await s.checkSeriesNews(fetch: fetch);
+    n = 2;
+    await s.checkSeriesNews(fetch: fetch);
+    expect(s.whatsNew, hasLength(1));
+    final other = await s.addProfile('Sofía', 'cat');
+    await s.selectProfile(other!.id);
+    expect(s.whatsNew, isEmpty);
   });
 
   test('mark episodes seen without playing, and unmark', () async {

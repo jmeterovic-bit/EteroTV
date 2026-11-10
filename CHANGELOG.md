@@ -13,6 +13,7 @@
   - Un error de una pista que no impide ver el video (en la Bravia: «Could not open codec») ya no se muestra.
 - Siguiente episodio: el aviso es una tarjeta chica en la esquina, con un círculo que se vacía en 30 s (antes una ventana de 10 s), y aparece en los últimos 100 s (antes a los 90 %, unos 3 minutos antes de que terminara el capítulo). Lo visto sigue igual (90 % o menos de 3 min).
 - Al salir del reproductor ya no aparece el mensaje con el tiempo guardado (solo si el reproductor no dijo dónde quedaste).
+- Inicio → «Lo nuevo»: series de tu historial con una temporada nueva (marca morada «NUEVA TEMPORADA») o capítulos nuevos (marca verde «NUEVO CAPÍTULO»). Se revisa al actualizar la lista; la primera vez en cada aparato solo toma nota. La marca se va al ver un capítulo nuevo, o a los 30 días.
 - Canales en vivo: «Ahora» y «Después» de la guía del proveedor, en la lista de canales y sobre el video.
 - Perfiles: en el celular y el PC se puede usar una imagen tuya como ícono (además de los dibujos). Llega a los otros aparatos con el perfil.
 - El APK es solo para aparatos ARM (todos los celulares, Google TV y Fire TV), para que no pese el doble.

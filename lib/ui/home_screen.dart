@@ -278,6 +278,11 @@ class _HomeTabState extends State<HomeTab> {
             children: [for (final e in cont) ContinueCard(entry: e)],
           ),
           Shelf(
+            title: tr('Lo nuevo'),
+            height: posterRowHeight,
+            children: [for (final (item, kind) in s.whatsNew) PosterCard(item: item, news: kind)],
+          ),
+          Shelf(
             title: tr('Mi lista'),
             height: posterRowHeight,
             children: [for (final e in s.myList) PosterCard(item: catalogItemOf(e))],
