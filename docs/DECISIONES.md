@@ -67,3 +67,4 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | 2026-11-10 | Etapa 2 probada por Jose con los clientes OAuth reales: funciona. |
 | 2026-11-10 | v0.5.0: etapa 3, control remoto: menú manteniendo OK o con ≡, Atrás vuelve a Inicio y pide confirmar para salir, buscadores sin teclado al pasar, borde de foco en botones, márgenes en TV, ayuda en Ajustes. |
 | 2026-11-10 | v0.5.1: el inicio de sesión y el PIN usan el mismo campo que los buscadores en TV; en la Bravia de Jose la pantalla de inicio no respondía al control. |
+| 2026-11-10 | Script de instalación en TV: espera hasta 90 s a que se acepte la depuración en el televisor (antes 3 s); el tiempo está en la variable `WAIT`. Pedido por Jose (la segunda TV está en otra habitación). |

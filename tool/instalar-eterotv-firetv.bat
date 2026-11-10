@@ -52,18 +52,29 @@ if not defined IP exit /b 1
 
 echo.
 echo Conectando con !IP! ... Si el televisor pregunta "Permitir depuracion", elige Permitir
-echo ^(marca "Permitir siempre desde este equipo"^) y vuelve a ejecutar este archivo si falla.
+echo ^(marca "Permitir siempre desde este equipo"^).
+rem Segundos que espera a que se acepte en el televisor (cambialo aqui si necesitas mas).
+set "WAIT=90"
+echo Tienes !WAIT! segundos para ir al televisor y aceptar.
 "%ADB%" disconnect !IP!:5555 >nul 2>nul
 "%ADB%" connect !IP!:5555
-timeout /t 3 >nul
-"%ADB%" -s !IP!:5555 get-state >nul 2>nul
-if errorlevel 1 (
-  echo.
-  echo No se pudo conectar. Revisa que la depuracion ADB este activada y que el PC y el
-  echo televisor esten en la misma red Wi-Fi.
-  pause
-  exit /b 1
-)
+set /a LEFT=!WAIT!
+:waitauth
+"%ADB%" -s !IP!:5555 get-state 2>nul | find "device" >nul
+if not errorlevel 1 goto connected
+if !LEFT! leq 0 goto noconnect
+timeout /t 3 /nobreak >nul
+set /a LEFT-=3
+"%ADB%" connect !IP!:5555 >nul 2>nul
+goto waitauth
+:noconnect
+echo.
+echo No se pudo conectar. Revisa que la depuracion ADB este activada, que aceptaste el
+echo aviso en el televisor y que el PC y el televisor esten en la misma red Wi-Fi.
+pause
+exit /b 1
+:connected
+echo Conectado.
 
 echo Instalando EteroTV ^(puede tardar un minuto^)...
 "%ADB%" -s !IP!:5555 install -r "%APK%"
