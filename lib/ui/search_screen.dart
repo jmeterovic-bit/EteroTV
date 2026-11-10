@@ -12,8 +12,11 @@ import 'series_screen.dart';
 import 'widgets.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key, this.autofocus = true});
+  const SearchScreen({super.key, this.autofocus = true, this.typeNow});
   final bool autofocus;
+
+  /// Ticks when the «Buscar» tab is chosen: the cursor goes to the field.
+  final Listenable? typeNow;
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -22,14 +25,23 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   List<CatalogItem> _results = const [];
   Timer? _debounce;
+  String _text = '';
+
+  /// Where to look: everything (null), or only series, movies or channels.
+  Kind? _kind;
 
   void _changed(String q) {
+    final shown = q.trim().isNotEmpty;
+    if (shown != _text.trim().isNotEmpty) setState(() {});
+    _text = q;
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 350), () async {
-      final st = context.read<AppState>();
-      final r = (await st.db.search(q)).where((it) => !st.isHiddenItem(it)).toList();
-      if (mounted) setState(() => _results = r);
-    });
+    _debounce = Timer(const Duration(milliseconds: 350), _search);
+  }
+
+  Future<void> _search() async {
+    final st = context.read<AppState>();
+    final r = (await st.db.search(_text, kind: _kind)).where((it) => !st.isHiddenItem(it)).toList();
+    if (mounted) setState(() => _results = r);
   }
 
   @override
@@ -44,11 +56,37 @@ class _SearchScreenState extends State<SearchScreen> {
       appBar: AppBar(
         title: RemoteTextField(
           autofocus: widget.autofocus,
+          typeNow: widget.typeNow,
           onChanged: _changed,
           decoration: const InputDecoration(hintText: 'Buscar canales, películas y series', border: InputBorder.none),
         ),
       ),
-      body: ListView.builder(
+      body: Column(
+        children: [
+          if (_text.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: SegmentedButton<Kind?>(
+                showSelectedIcon: false,
+                segments: [
+                  const ButtonSegment(value: null, label: Text('Todo')),
+                  for (final k in [Kind.series, Kind.movie, Kind.live])
+                    ButtonSegment(value: k, label: Text(kindTitle(k))),
+                ],
+                selected: {_kind},
+                onSelectionChanged: (v) {
+                  setState(() => _kind = v.first);
+                  _search();
+                },
+              ),
+            ),
+          Expanded(child: _list()),
+        ],
+      ),
+    );
+  }
+
+  Widget _list() => ListView.builder(
         itemCount: _results.length,
         itemBuilder: (_, i) {
           final it = _results[i];
@@ -65,7 +103,5 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           );
         },
-      ),
-    );
-  }
+      );
 }

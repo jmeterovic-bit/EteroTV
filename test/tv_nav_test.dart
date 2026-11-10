@@ -258,6 +258,35 @@ void main() {
     expect(label(), startsWith('Canal'));
   });
 
+  testWidgets('Buscar desde el menú: el cursor queda listo y se elige dónde buscar', (tester) async {
+    runningOnTv = true;
+    addTearDown(() => runningOnTv = false);
+    await open(tester, const HomeScreen());
+    await tester.tap(find.text('Buscar').last);
+    await wait(tester);
+    expect(focus().context!.findAncestorWidgetOfExactType<TextField>(), isNotNull, reason: label());
+    expect(tester.widget<TextField>(find.byType(TextField).last).readOnly, isFalse, reason: 'listo para escribir');
+    expect(find.text('Películas'), findsOneWidget, reason: 'sin texto no hay opciones (solo el menú)');
+    await tester.enterText(find.byType(TextField).last, 'título m1');
+    await wait(tester);
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await wait(tester);
+    await press(tester, LogicalKeyboardKey.arrowDown, 'abajo a las opciones');
+    for (var i = 0; i < 3 && label() != 'Todo'; i++) {
+      await press(tester, LogicalKeyboardKey.arrowLeft, 'a Todo');
+    }
+    expect(label(), 'Todo');
+    await press(tester, LogicalKeyboardKey.arrowRight, 'a Series');
+    expect(label(), 'Series');
+    await press(tester, LogicalKeyboardKey.select, 'solo series');
+    await wait(tester);
+    expect(find.textContaining('Título m1'), findsNothing, reason: 'solo series');
+    await press(tester, LogicalKeyboardKey.arrowRight, 'a Películas');
+    await press(tester, LogicalKeyboardKey.select, 'solo películas');
+    await wait(tester);
+    expect(find.textContaining('Título m1'), findsWidgets);
+  });
+
   testWidgets('Series: subir pasa por cada fila antes de «Carpetas y búsqueda»', (tester) async {
     await open(tester, const HomeScreen());
     // To the side menu, down to Series, and back into the page.

@@ -30,6 +30,20 @@ class _HomeScreenState extends State<HomeScreen> {
   /// coming back from the side menu), and the arrows can leave it.
   final _scopes = List.generate(5, (i) => TvRegionScope(debugLabel: 'tab $i'));
 
+  /// Choosing «Buscar» puts the cursor in its field (Jose, 2026-11-10).
+  final _typeSearch = ChangeNotifier();
+  static const _searchTab = 4;
+
+  void _select(int i) {
+    setState(() => _tab = i);
+    if (i == _searchTab) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+        if (mounted) _typeSearch.notifyListeners();
+      });
+    }
+  }
+
   /// Folders opened with the PIN lock again after an hour away from the app.
   static const relockAfter = Duration(hours: 1);
   late final AppLifecycleListener _life;
@@ -50,6 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _life.dispose();
+    _typeSearch.dispose();
     for (final s in _scopes) {
       s.dispose();
     }
@@ -98,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
       const KindTab(kind: Kind.series),
       const KindTab(kind: Kind.movie),
       const KindTab(kind: Kind.live),
-      const SearchScreen(autofocus: false),
+      SearchScreen(autofocus: false, typeNow: _typeSearch),
     ];
     final body = IndexedStack(
       index: _tab,
@@ -120,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: NavigationRail(
             backgroundColor: const Color(0xFF101010),
             selectedIndex: _tab,
-            onDestinationSelected: (i) => setState(() => _tab = i),
+            onDestinationSelected: _select,
             labelType: NavigationRailLabelType.all,
             indicatorColor: accent.withValues(alpha: 0.25),
             leading: Padding(
@@ -165,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
             indicatorColor: accent.withValues(alpha: 0.25),
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             selectedIndex: _tab,
-            onDestinationSelected: (i) => setState(() => _tab = i),
+            onDestinationSelected: _select,
             destinations: [
               for (final d in _dest)
                 NavigationDestination(

@@ -34,6 +34,22 @@ class RemoteMenu extends StatefulWidget {
   State<RemoteMenu> createState() => _RemoteMenuState();
 }
 
+/// The OK still held after a menu opened would go on to the menu's first
+/// option (key repeats and the release press it): this keeps that OK away
+/// until it is let go.
+void _swallowOkUntilUp() {
+  late KeyEventResult Function(KeyEvent) handler;
+  handler = (KeyEvent e) {
+    if (!isOkKey(e.logicalKey)) return KeyEventResult.ignored;
+    if (e is KeyUpEvent) {
+      // After this event: removing a handler while it runs is not allowed.
+      scheduleMicrotask(() => FocusManager.instance.removeEarlyKeyEventHandler(handler));
+    }
+    return KeyEventResult.handled;
+  };
+  FocusManager.instance.addEarlyKeyEventHandler(handler);
+}
+
 class _RemoteMenuState extends State<RemoteMenu> {
   Timer? _hold;
   bool _down = false;
@@ -61,6 +77,7 @@ class _RemoteMenuState extends State<RemoteMenu> {
         _hold = Timer(RemoteMenu.holdTime, () {
           if (!_down || !mounted) return;
           _opened = true;
+          _swallowOkUntilUp();
           menu();
         });
       case KeyUpEvent():
@@ -86,6 +103,7 @@ class _RemoteMenuState extends State<RemoteMenu> {
 class RemoteTextField extends StatefulWidget {
   const RemoteTextField({
     super.key,
+    this.typeNow,
     this.onChanged,
     this.onSubmitted,
     this.controller,
@@ -116,6 +134,10 @@ class RemoteTextField extends StatefulWidget {
   /// Overrides [runningOnTv] (tests).
   final bool? tv;
 
+  /// Each time it ticks, the field takes the focus ready to type (the
+  /// keyboard opens, also on TV).
+  final Listenable? typeNow;
+
   @override
   State<RemoteTextField> createState() => _RemoteTextFieldState();
 }
@@ -134,10 +156,31 @@ class _RemoteTextFieldState extends State<RemoteTextField> {
     _focus.addListener(() {
       if (!_focus.hasFocus && _typing) setState(() => _typing = false);
     });
+    widget.typeNow?.addListener(_typeNow);
+  }
+
+  @override
+  void didUpdateWidget(RemoteTextField old) {
+    super.didUpdateWidget(old);
+    if (old.typeNow != widget.typeNow) {
+      old.typeNow?.removeListener(_typeNow);
+      widget.typeNow?.addListener(_typeNow);
+    }
+  }
+
+  void _typeNow() {
+    if (!mounted) return;
+    setState(() => _typing = true);
+    _focus.requestFocus();
+    // Once the field is editable (next frame), ask for the keyboard.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _focus.hasFocus) SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+    });
   }
 
   @override
   void dispose() {
+    widget.typeNow?.removeListener(_typeNow);
     _focus.dispose();
     super.dispose();
   }
