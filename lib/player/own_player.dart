@@ -200,11 +200,11 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   void initState() {
     super.initState();
     widget.onOpen?.call(close);
-    tvFullScreen.value = true;
+    enterTvFullScreen();
     _subs
       ..add(
         _player.stream.position.listen((p) {
-          _pos = p;
+          if (_seekTarget == null) _pos = p;
           if (p > Duration.zero) _started = true;
           final s = p.inSeconds;
           if (s != _lastReport && _len > Duration.zero) {
@@ -262,6 +262,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   void close() {
     if (_closing || !mounted) return;
     _closing = true;
+    _seekTarget = null;
     Navigator.of(context).pop();
   }
 
@@ -278,11 +279,33 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _flashTimer?.cancel();
     _guideTimer?.cancel();
     _focus.dispose();
-    _player.dispose();
-    tvFullScreen.value = false;
+    unawaited(_release(_player));
+    leaveTvFullScreen();
     if (Platform.isAndroid) SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
+
+  /// Lets go of the player without hanging the app. The video surface is
+  /// taken from mpv first (vid=no, vo=null): media_kit releases it on the
+  /// main thread while mpv could still be drawing on it, and on the Fire TV
+  /// that froze the app when leaving a video.
+  static Future<void> _release(Player player) async {
+    try {
+      final native = player.platform;
+      if (native is NativePlayer) {
+        await native.setProperty('pause', 'yes').timeout(_releaseWait);
+        await native.setProperty('vid', 'no').timeout(_releaseWait);
+        await native.setProperty('vo', 'null').timeout(_releaseWait);
+      }
+    } catch (_) {
+      // Still free it below.
+    }
+    try {
+      await player.dispose();
+    } catch (_) {}
+  }
+
+  static const _releaseWait = Duration(seconds: 2);
 
   void _showOverlay({int? select}) {
     setState(() {
@@ -307,13 +330,43 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _showOverlay();
   }
 
+  /// Where a seek in progress is going. While one runs, more presses only
+  /// move this target: a burst of ◀ (held on the remote) used to queue one
+  /// mpv seek per press, and on the Fire TV each one reopened the stream,
+  /// so the video froze and closing waited behind all of them.
+  Duration? _seekTarget;
+  bool _seeking = false;
+
+  void _seekTo(Duration t) {
+    if (_closing) return;
+    _seekTarget = t;
+    _pos = t;
+    if (_seeking) return;
+    _seeking = true;
+    unawaited(_runSeeks());
+  }
+
+  Future<void> _runSeeks() async {
+    try {
+      while (_seekTarget != null && !_closing) {
+        final t = _seekTarget!;
+        await _player.seek(t);
+        if (_seekTarget == t) _seekTarget = null;
+      }
+    } catch (_) {
+      // The player went away (closed while seeking).
+    } finally {
+      _seekTarget = null;
+      _seeking = false;
+    }
+  }
+
   void _seekBy(Duration d) {
     if (_live) return;
-    var t = _pos + d;
+    var t = (_seekTarget ?? _pos) + d;
     if (t < Duration.zero) t = Duration.zero;
     if (t > _len) t = _len;
-    _player.seek(t);
-    _pos = t;
+    _seekTo(t);
     _flashTimer?.cancel();
     setState(() => _flash = d.isNegative ? '-${d.inSeconds.abs()} s' : '+${d.inSeconds} s');
     _flashTimer = Timer(const Duration(milliseconds: 700), () {
@@ -689,7 +742,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                               value: _pos.inMilliseconds.clamp(0, _len.inMilliseconds).toDouble(),
                               max: _len.inMilliseconds.toDouble(),
                               onChanged: (v) {
-                                _player.seek(Duration(milliseconds: v.round()));
+                                _seekTo(Duration(milliseconds: v.round()));
                                 _showOverlay();
                               },
                             ),

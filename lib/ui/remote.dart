@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../platform/device.dart';
@@ -239,6 +240,29 @@ class _RemoteTextFieldState extends State<RemoteTextField> {
 /// True while a video plays in the app's own player: it takes the whole
 /// screen, without the TV margins (they showed as grey bars, 2026-11-10).
 final tvFullScreen = ValueNotifier<bool>(false);
+
+int _fullScreenUsers = 0;
+
+/// Called from the player's initState and dispose. Players can overlap (the
+/// next episode opens while the last one closes), so they are counted, and
+/// the change waits for the end of the frame: changing it while the screens
+/// are being built or removed left the margins stuck until the app was
+/// restarted (Fire TV, 2026-11-10, after «Ver siguiente»).
+void enterTvFullScreen() {
+  _fullScreenUsers++;
+  _applyFullScreen();
+}
+
+void leaveTvFullScreen() {
+  if (_fullScreenUsers > 0) _fullScreenUsers--;
+  _applyFullScreen();
+}
+
+void _applyFullScreen() {
+  final b = SchedulerBinding.instance;
+  b.addPostFrameCallback((_) => tvFullScreen.value = _fullScreenUsers > 0);
+  b.scheduleFrame();
+}
 
 /// Keeps the app away from the edges that some TVs cut off (overscan).
 class TvSafeArea extends StatelessWidget {

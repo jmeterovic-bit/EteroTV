@@ -119,4 +119,63 @@ void main() {
     expect(Focus.of(tester.element(find.text('Abajo'))).hasFocus, isTrue);
     expect(field().readOnly, isTrue, reason: 'leaving the field stops typing');
   });
+
+  testWidgets('the player takes the whole TV screen, also when the next episode replaces it', (tester) async {
+    final nav = GlobalKey<NavigatorState>();
+    EdgeInsetsGeometry margin() => tester
+        .widget<Padding>(find.descendant(of: find.byType(TvSafeArea), matching: find.byType(Padding)).first)
+        .padding;
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: nav,
+        builder: (_, child) => TvSafeArea(child: child!),
+        home: const Text('Canales'),
+      ),
+    );
+    expect(margin(), isNot(EdgeInsets.zero));
+
+    Future<void> open(String name) async {
+      nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => _FakePlayer(name)));
+      await tester.pumpAndSettle();
+    }
+
+    await open('T1 E1');
+    expect(margin(), EdgeInsets.zero);
+    // «Ver siguiente»: the episode closes and the next one opens right away.
+    nav.currentState!.pop();
+    nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => const _FakePlayer('T1 E2')));
+    await tester.pumpAndSettle();
+    expect(margin(), EdgeInsets.zero);
+    nav.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(margin(), isNot(EdgeInsets.zero), reason: 'back in the app: margins again');
+    await open('T1 E3');
+    expect(margin(), EdgeInsets.zero, reason: 'not stuck');
+    nav.currentState!.pop();
+    await tester.pumpAndSettle();
+  });
+}
+
+class _FakePlayer extends StatefulWidget {
+  const _FakePlayer(this.name);
+  final String name;
+  @override
+  State<_FakePlayer> createState() => _FakePlayerState();
+}
+
+class _FakePlayerState extends State<_FakePlayer> {
+  @override
+  void initState() {
+    super.initState();
+    enterTvFullScreen();
+  }
+
+  @override
+  void dispose() {
+    leaveTvFullScreen();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Text(widget.name);
 }
