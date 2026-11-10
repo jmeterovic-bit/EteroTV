@@ -149,6 +149,7 @@ class _ContinueCardState extends State<ContinueCard> {
               title: Text(e.title, style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
             ListTile(
+              autofocus: true,
               leading: const Icon(Icons.info_outline),
               title: const Text('Ver ficha'),
               onTap: () => Navigator.pop(c, 'info'),
@@ -290,6 +291,7 @@ Future<void> showItemMenu(BuildContext context, CatalogItem item) async {
             title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
           ListTile(
+            autofocus: true,
             leading: const Icon(Icons.info_outline),
             title: const Text('Ver ficha'),
             onTap: () => Navigator.pop(c, 'info'),
@@ -353,18 +355,39 @@ class PosterCard extends StatelessWidget {
   }
 }
 
-/// Channel logo card: OK plays it.
+/// Channel logo card: OK plays it; holding OK (or a long press) adds it to
+/// or removes it from the favorites.
 class ChannelCard extends StatelessWidget {
   const ChannelCard({super.key, required this.item});
   final CatalogItem item;
 
   @override
-  Widget build(BuildContext context) => FocusCard(
-    width: 140,
-    aspect: 16 / 10,
-    title: item.name,
-    image: item.icon,
-    icon: Icons.live_tv,
-    onTap: () => playWithChecks(context, (st) => st.playLive(item)),
-  );
+  Widget build(BuildContext context) {
+    final fav = context.select<AppState, bool>((s) => s.isFavorite(Kind.live, item.id));
+    return FocusCard(
+      width: 140,
+      aspect: 16 / 10,
+      title: item.name,
+      image: item.icon,
+      icon: Icons.live_tv,
+      badge: fav ? Icons.star : null,
+      onTap: () => playWithChecks(context, (st) => st.playLive(item)),
+      onLongPress: () => toggleFavoriteWithNote(context, item),
+    );
+  }
+}
+
+/// Stars or unstars [item] and says so (on TV there is no other sign).
+void toggleFavoriteWithNote(BuildContext context, CatalogItem item) {
+  final s = context.read<AppState>();
+  final was = s.isFavorite(item.kind, item.id);
+  s.toggleFavorite(item);
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(was ? '${item.name}: quitado de favoritos' : '${item.name}: agregado a favoritos'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
 }

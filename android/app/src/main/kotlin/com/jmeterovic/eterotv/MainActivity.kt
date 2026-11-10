@@ -71,6 +71,7 @@ class MainActivity : FlutterActivity() {
         pending?.success(null)
         pending = null
         tried.clear()
+        playerFailed = false
         val uri = Uri.parse(url)
         fun MutableList<Pair<String, Intent>>.attempt(name: String, build: Intent.() -> Unit) =
             add(name to Intent().apply(build).apply {
@@ -96,6 +97,8 @@ class MainActivity : FlutterActivity() {
             action = Intent.ACTION_VIEW
             setPackage("org.videolan.vlc")
         }
+        // On a device where VLC's player already closed at once, skip it.
+        if (prefs.getBoolean("skipPlayer", false)) tries.removeAt(0)
         queue = tries
         pending = result
         if (!launchNext()) {
@@ -107,7 +110,9 @@ class MainActivity : FlutterActivity() {
     /** The ways still left to try for the current video. */
     private var queue = mutableListOf<Pair<String, Intent>>()
     private var launchedAt = 0L
+    private val prefs by lazy { getSharedPreferences("eterotv_vlc", MODE_PRIVATE) }
     private val tried = mutableListOf<String>()
+    private var playerFailed = false
 
     private fun launchNext(): Boolean {
         while (queue.isNotEmpty()) {
@@ -131,9 +136,17 @@ class MainActivity : FlutterActivity() {
         if (requestCode != vlcRequest) return
         val result = pending ?: return
         // Some VLC versions (seen on a Sony Google TV) close the player at
-        // once, with nothing: then try the next way to open it.
-        val quick = SystemClock.elapsedRealtime() - launchedAt < 4000
-        if (data == null && quick && launchNext()) return
+        // once, with nothing: then try the next way to open it, and remember.
+        // (VLC can take a while to give up on a stream, so 15 s.)
+        val quick = SystemClock.elapsedRealtime() - launchedAt < 15000
+        val failed = data == null && quick
+        if (failed && tried.lastOrNull() == "player") playerFailed = true
+        // The player failed and another way worked: skip the player from now on
+        // on this device (not when the stream itself fails everywhere).
+        if (!failed && playerFailed && tried.lastOrNull() != "player") {
+            prefs.edit().putBoolean("skipPlayer", true).apply()
+        }
+        if (failed && launchNext()) return
         pending = null
         // Read as any number: some VLC versions send Int, others Long.
         val extras = data?.extras

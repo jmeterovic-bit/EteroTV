@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Moving the focus with the arrows of a TV remote.
 ///
@@ -22,8 +23,8 @@ class TvRegionScope extends FocusScopeNode {
   TvRegionScope({super.debugLabel});
 }
 
-/// Marks a secondary button (like «Ver todo») that up and down only reach
-/// when it is right above or below.
+/// Marks a row's secondary button («Ver todo»): up and down skip it, and
+/// right from the end of its row reaches it.
 const tvAsideLabel = 'tv-aside';
 
 final tvActions = <Type, Action<Intent>>{
@@ -88,7 +89,8 @@ double _gapY(Rect a, Rect b) => max(0, max(a.top - b.bottom, b.top - a.bottom));
 
 /// Moves the focus from [current] one step in [direction]. Returns false
 /// (and keeps the focus) when there is nothing that way.
-bool tvFocusInDirection(FocusNode current, TraversalDirection direction) {
+bool tvFocusInDirection(FocusNode current, TraversalDirection direction, {bool retry = true}) {
+  if (current is FocusScopeNode) return tvRecoverFocus(current);
   final ctx = current.context;
   var scope = current.nearestScope;
   if (ctx == null || scope == null) return false;
@@ -114,14 +116,19 @@ bool tvFocusInDirection(FocusNode current, TraversalDirection direction) {
   FocusNode? found;
   if (vertical) {
     final col = _column(current);
-    final cands = [
+    var cands = [
       for (final n in all)
-        if (ahead(n.rect) &&
-            _overlapX(_column(n), col) &&
-            (n.debugLabel != tvAsideLabel || _overlapX(n.rect, cur)) &&
-            shows(n))
-          n,
+        if (ahead(n.rect) && _overlapX(_column(n), col) && n.debugLabel != tvAsideLabel && shows(n)) n,
     ];
+    // Inside a list, the next row of that list first (even if it is just
+    // off screen): a search bar or a button above the list comes after.
+    if (along != null) {
+      final inList = [
+        for (final n in cands)
+          if (_scrollableOn(n.context!, Axis.vertical) == along) n,
+      ];
+      if (inList.isNotEmpty) cands = inList;
+    }
     if (cands.isNotEmpty) {
       double dy(FocusNode n) => (n.rect.center.dy - cur.center.dy).abs();
       final nearest = cands.reduce((a, b) => dy(a) <= dy(b) ? a : b);
@@ -135,6 +142,13 @@ bool tvFocusInDirection(FocusNode current, TraversalDirection direction) {
         if (ahead(n.rect) && shows(n)) n,
     ];
     final band = cands.where((n) => _overlapY(n.rect, cur)).toList();
+    // At the end of a row, right goes to its «Ver todo» (just above it).
+    if (band.isEmpty && direction == TraversalDirection.right) {
+      final aside = all.where(
+        (n) => n.debugLabel == tvAsideLabel && n.rect.bottom <= cur.top + 8 && n.rect.bottom > cur.top - 80,
+      );
+      if (aside.isNotEmpty) band.add(aside.first);
+    }
     final pool = band.isNotEmpty ? band : cands;
     if (pool.isNotEmpty) {
       double score(FocusNode n) =>
@@ -142,7 +156,7 @@ bool tvFocusInDirection(FocusNode current, TraversalDirection direction) {
       found = pool.reduce((a, b) => score(a) <= score(b) ? a : b);
     }
   }
-  if (found == null) return false;
+  if (found == null) return _scrollOn(current, along, direction, retry);
 
   // Entering a tab from outside: back to the item it had, if it shows.
   final region = found.ancestors.whereType<TvRegionScope>().firstOrNull;
@@ -154,6 +168,60 @@ bool tvFocusInDirection(FocusNode current, TraversalDirection direction) {
   found.requestFocus();
   _reveal(found, direction);
   return true;
+}
+
+/// Nothing more that way among what the list has built: lists only build
+/// what is near the screen, so scroll it a bit and look again.
+bool _scrollOn(FocusNode current, ScrollableState? along, TraversalDirection direction, bool retry) {
+  if (along == null || !retry) return false;
+  final p = along.position;
+  final forward = direction == TraversalDirection.down || direction == TraversalDirection.right;
+  final to = (p.pixels + (forward ? 1 : -1) * p.viewportDimension * 0.6).clamp(p.minScrollExtent, p.maxScrollExtent);
+  if (to == p.pixels) return false;
+  p.jumpTo(to);
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (current.hasPrimaryFocus && current.context != null) {
+      tvFocusInDirection(current, direction, retry: false);
+    }
+  });
+  WidgetsBinding.instance.scheduleFrame();
+  return true;
+}
+
+/// When the focused item disappeared (a row reloaded under it), the focus
+/// is left on the page itself and the arrows did nothing. This puts it back
+/// on the item that shows nearest the top left.
+bool tvRecoverFocus([FocusScopeNode? scope]) {
+  var s = scope ?? FocusManager.instance.rootScope;
+  // The innermost scope that has the focus (the open screen, the tab).
+  while (s.focusedChild is FocusScopeNode) {
+    s = s.focusedChild! as FocusScopeNode;
+  }
+  final shown = [
+    for (final n in s.traversalDescendants)
+      if (n is! FocusScopeNode && n.context != null && n.context!.mounted && !n.rect.isEmpty && _shows(n, null)) n,
+  ];
+  if (shown.isEmpty) return false;
+  // Content first (to the right of the side menu), then top to bottom.
+  double score(FocusNode n) => n.rect.top + n.rect.left * 0.5 - (_column(n).width > 300 ? 100000 : 0);
+  final pick = shown.reduce((a, b) => score(a) <= score(b) ? a : b);
+  pick.requestFocus();
+  return true;
+}
+
+/// Arrow keys when nothing has the focus at all.
+bool tvKeyHandler(KeyEvent e) {
+  if (e is! KeyDownEvent) return false;
+  final arrows = {
+    LogicalKeyboardKey.arrowUp,
+    LogicalKeyboardKey.arrowDown,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowRight,
+  };
+  if (!arrows.contains(e.logicalKey)) return false;
+  final f = FocusManager.instance.primaryFocus;
+  if (f != null && f is! FocusScopeNode) return false;
+  return tvRecoverFocus(f as FocusScopeNode?);
 }
 
 /// Scrolls [n] into view: rows keep it at their edge, lists center it.

@@ -7,7 +7,7 @@ import '../data/database.dart';
 import '../data/library.dart';
 import '../iptv/xtream.dart';
 import '../state/app_state.dart';
-import 'cards.dart' show showItemMenu;
+import 'cards.dart' show showItemMenu, toggleFavoriteWithNote;
 import 'movie_screen.dart';
 import 'pin.dart';
 import 'play.dart';
@@ -399,20 +399,27 @@ class ChannelTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fav = context.select<AppState, bool>((s) => s.isFavorite(Kind.live, item.id));
-    return ListTile(
-      autofocus: autofocus,
-      leading: SizedBox(
-        width: 56,
-        height: 40,
-        child: NetImage(item.icon, icon: Icons.live_tv, fit: BoxFit.contain),
-      ),
-      title: Text(item.name),
-      subtitle: item.number > 0 ? Text('${item.number}') : null,
-      onTap: () => playWithChecks(context, (s) => s.playLive(item)),
-      trailing: IconButton(
-        tooltip: fav ? 'Quitar de favoritos' : 'Agregar a favoritos',
-        icon: Icon(fav ? Icons.star : Icons.star_border, color: fav ? Colors.amber : null),
-        onPressed: () => context.read<AppState>().toggleFavorite(item),
+    void play() => playWithChecks(context, (s) => s.playLive(item));
+    // Holding OK (TV) or a long press stars it; the star on the right too.
+    return RemoteMenu(
+      onSelect: play,
+      onMenu: () => toggleFavoriteWithNote(context, item),
+      child: ListTile(
+        autofocus: autofocus,
+        leading: SizedBox(
+          width: 56,
+          height: 40,
+          child: NetImage(item.icon, icon: Icons.live_tv, fit: BoxFit.contain),
+        ),
+        title: Text(item.name),
+        subtitle: item.number > 0 ? Text('${item.number}') : null,
+        onTap: play,
+        onLongPress: () => toggleFavoriteWithNote(context, item),
+        trailing: IconButton(
+          tooltip: fav ? 'Quitar de favoritos' : 'Agregar a favoritos',
+          icon: Icon(fav ? Icons.star : Icons.star_border, color: fav ? Colors.amber : null),
+          onPressed: () => context.read<AppState>().toggleFavorite(item),
+        ),
       ),
     );
   }

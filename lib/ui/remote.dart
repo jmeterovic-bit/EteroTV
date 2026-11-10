@@ -121,7 +121,9 @@ class RemoteTextField extends StatefulWidget {
 }
 
 class _RemoteTextFieldState extends State<RemoteTextField> {
-  final _focus = FocusNode();
+  // The keys go to the field's own node first: the text field's inner
+  // shortcuts would take the arrows before a widget around it sees them.
+  late final _focus = FocusNode(onKeyEvent: _key);
   bool _typing = false;
 
   bool get _tv => widget.tv ?? runningOnTv;
@@ -141,7 +143,7 @@ class _RemoteTextFieldState extends State<RemoteTextField> {
   }
 
   KeyEventResult _key(FocusNode node, KeyEvent e) {
-    if (e is KeyUpEvent) return KeyEventResult.ignored;
+    if (!_tv || e is KeyUpEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
     if (!_typing && isOkKey(k)) {
       if (e is KeyDownEvent) setState(() => _typing = true);
@@ -175,6 +177,9 @@ class _RemoteTextFieldState extends State<RemoteTextField> {
       maxLength: widget.maxLength,
       style: widget.style,
       textAlign: widget.textAlign,
+      // On TV the focus stays on the field after «Buscar» / «Listo», so
+      // the arrows go on from here (by default the field lets go of it).
+      onEditingComplete: _tv ? () {} : null,
       onSubmitted: (v) {
         if (_typing) setState(() => _typing = false);
         widget.onSubmitted?.call(v);
@@ -183,8 +188,7 @@ class _RemoteTextFieldState extends State<RemoteTextField> {
           ? widget.decoration.copyWith(hintText: [?widget.decoration.hintText, '(OK para escribir)'].join(' '))
           : widget.decoration,
     );
-    if (!_tv) return field;
-    return Focus(canRequestFocus: false, skipTraversal: true, onKeyEvent: _key, child: field);
+    return field;
   }
 }
 
