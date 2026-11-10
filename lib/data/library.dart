@@ -1,4 +1,5 @@
 import '../iptv/xtream.dart';
+import '../ui/i18n.dart';
 
 /// One entry of "my library": a favourite and/or something with progress.
 /// This is the only data that will be synced between devices (stage 2).
@@ -53,7 +54,7 @@ class LibraryEntry {
   static String keyOf(Kind kind, String id) => '${kind.name}:$id';
 
   String get title => kind == Kind.episode
-      ? '$seriesName · T$season E$episode${name.isEmpty || name == seriesName ? '' : ' · $name'}'
+      ? tr('{0} · T{1} E{2}{3}', [seriesName, season, episode, name.isEmpty || name == seriesName ? '' : ' · $name'])
       : name;
 
   Map<String, Object?> toRow() => {

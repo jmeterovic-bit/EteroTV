@@ -10,6 +10,7 @@ import 'movie_screen.dart';
 import 'remote.dart';
 import 'series_screen.dart';
 import 'widgets.dart';
+import 'i18n.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key, this.autofocus = true, this.typeNow});
@@ -58,7 +59,7 @@ class _SearchScreenState extends State<SearchScreen> {
           autofocus: widget.autofocus,
           typeNow: widget.typeNow,
           onChanged: _changed,
-          decoration: const InputDecoration(hintText: 'Buscar canales, películas y series', border: InputBorder.none),
+          decoration: InputDecoration(hintText: tr('Buscar canales, películas y series'), border: InputBorder.none),
         ),
       ),
       body: Column(
@@ -69,7 +70,7 @@ class _SearchScreenState extends State<SearchScreen> {
               child: SegmentedButton<Kind?>(
                 showSelectedIcon: false,
                 segments: [
-                  const ButtonSegment(value: null, label: Text('Todo')),
+                  ButtonSegment(value: null, label: Text(tr('Todo'))),
                   for (final k in [Kind.series, Kind.movie, Kind.live])
                     ButtonSegment(value: k, label: Text(kindTitle(k))),
                 ],
@@ -87,21 +88,21 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _list() => ListView.builder(
-        itemCount: _results.length,
-        itemBuilder: (_, i) {
-          final it = _results[i];
-          if (it.kind == Kind.live) return ChannelTile(item: it);
-          return ListTile(
-            leading: SizedBox(width: 40, height: 60, child: NetImage(it.icon)),
-            title: Text(it.name),
-            subtitle: Text([kindTitle(it.kind), if (it.year.isNotEmpty) it.year].join(' · ')),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => it.kind == Kind.series ? SeriesScreen(item: it) : MovieScreen(item: it),
-              ),
-            ),
-          );
-        },
+    itemCount: _results.length,
+    itemBuilder: (_, i) {
+      final it = _results[i];
+      if (it.kind == Kind.live) return ChannelTile(item: it);
+      return ListTile(
+        leading: SizedBox(width: 40, height: 60, child: NetImage(it.icon)),
+        title: Text(it.name),
+        subtitle: Text([kindTitle(it.kind), if (it.year.isNotEmpty) it.year].join(' · ')),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => it.kind == Kind.series ? SeriesScreen(item: it) : MovieScreen(item: it),
+          ),
+        ),
       );
+    },
+  );
 }

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../platform/device.dart';
 import 'tv_focus.dart';
+import 'i18n.dart';
 
 /// Keys that mean "OK" on a TV remote, a keyboard or a gamepad.
 final _okKeys = {
@@ -228,7 +229,7 @@ class _RemoteTextFieldState extends State<RemoteTextField> {
         widget.onSubmitted?.call(v);
       },
       decoration: _tv && !_typing
-          ? widget.decoration.copyWith(hintText: [?widget.decoration.hintText, '(OK para escribir)'].join(' '))
+          ? widget.decoration.copyWith(hintText: [?widget.decoration.hintText, tr('(OK para escribir)')].join(' '))
           : widget.decoration,
     );
     return field;

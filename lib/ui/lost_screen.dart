@@ -8,6 +8,7 @@ import '../logic/rematch.dart';
 import '../state/app_state.dart';
 import 'browse_screen.dart';
 import 'widgets.dart';
+import 'i18n.dart';
 
 /// After a list update: favourites and progress whose item disappeared,
 /// each with the closest matches. Nothing changes until the user picks.
@@ -18,16 +19,17 @@ class LostScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final lost = context.watch<AppState>().lost;
     return Scaffold(
-      appBar: AppBar(title: const Text('Revisar favoritos perdidos')),
+      appBar: AppBar(title: Text(tr('Revisar favoritos perdidos'))),
       body: lost.isEmpty
-          ? const Center(child: Text('Todo en orden.'))
+          ? Center(child: Text(tr('Todo en orden.')))
           : ListView(
               children: [
-                const Padding(
+                Padding(
                   padding: EdgeInsets.all(16),
                   child: Text(
-                    'Tu proveedor cambió estos elementos en la lista nueva. Elige el reemplazo correcto '
-                    'o descártalos. El progreso pasa al que elijas.',
+                    tr(
+                      'Tu proveedor cambió estos elementos en la lista nueva. Elige el reemplazo correcto o descártalos. El progreso pasa al que elijas.',
+                    ),
                   ),
                 ),
                 for (final e in lost) _LostTile(key: ValueKey(e.key), entry: e),
@@ -66,8 +68,8 @@ class _LostTileState extends State<_LostTile> {
       kindTitle(kind),
       if (e.year.isNotEmpty) e.year,
       if (e.kind == Kind.movie && e.durationSecs > 0) formatTime(e.durationSecs),
-      if (e.favorite) 'favorito',
-      if (e.positionSecs > 0 && !e.watched) 'en ${formatTime(e.positionSecs)}',
+      if (e.favorite) tr('favorito'),
+      if (e.positionSecs > 0 && !e.watched) tr('en {0}', [formatTime(e.positionSecs)]),
     ].join(' · ');
     final c = _candidates;
     return Card(
@@ -83,7 +85,7 @@ class _LostTileState extends State<_LostTile> {
             if (c == null)
               const LinearProgressIndicator()
             else if (c.isEmpty)
-              const Text('No encontré nada parecido.')
+              Text(tr('No encontré nada parecido.'))
             else
               for (final cand in c)
                 ListTile(
@@ -92,7 +94,7 @@ class _LostTileState extends State<_LostTile> {
                   title: Text(cand.item.name),
                   subtitle: Text(
                     [
-                      '${(cand.score * 100).round()} % parecido',
+                      tr('{0} % parecido', [(cand.score * 100).round()]),
                       if (cand.item.year.isNotEmpty) cand.item.year,
                       if (cand.durationSecs > 0) formatTime(cand.durationSecs),
                       ...cand.reasons,
@@ -103,7 +105,7 @@ class _LostTileState extends State<_LostTile> {
                 ),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(onPressed: () => s.dismissLost(e), child: const Text('Descartar')),
+              child: TextButton(onPressed: () => s.dismissLost(e), child: Text(tr('Descartar'))),
             ),
           ],
         ),

@@ -8,6 +8,7 @@ import '../iptv/xtream.dart';
 import '../platform/win_window.dart';
 import '../player/vlc.dart';
 import '../state/app_state.dart';
+import 'i18n.dart';
 
 /// Checks the provider's connection limit, then runs [action] (which opens
 /// VLC). Shows clear messages instead of failing silently.
@@ -34,11 +35,11 @@ Future<void> playWithChecks(
     final go = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Límite de reproducciones'),
+        title: Text(tr('Límite de reproducciones')),
         content: Text(warning),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Abrir igual')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(tr('Cancelar'))),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: Text(tr('Abrir igual'))),
         ],
       ),
     );
@@ -79,7 +80,7 @@ Future<void> playWithChecks(
   } on VlcMissing catch (e) {
     if (context.mounted) await _noVlc(context, e.player);
   } catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text('No se pudo abrir ${state.vlc.name}: $e')));
+    messenger.showSnackBar(SnackBar(content: Text(tr('No se pudo abrir {0}: {1}', [state.vlc.name, e]))));
   } finally {
     vlcClosed = true;
     state.nearEnd.removeListener(listener);
@@ -144,7 +145,7 @@ class _NextEpisodeDialogState extends State<NextEpisodeDialog> {
   Widget build(BuildContext context) {
     final ep = widget.episode;
     return AlertDialog(
-      title: Text('Siguiente: T${ep.season} E${ep.number}'),
+      title: Text(tr('Siguiente: T{0} E{1}', [ep.season, ep.number])),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,15 +154,15 @@ class _NextEpisodeDialogState extends State<NextEpisodeDialog> {
           const SizedBox(height: 16),
           LinearProgressIndicator(value: _left / widget.seconds),
           const SizedBox(height: 8),
-          Text('Empieza en $_left s'),
+          Text(tr('Empieza en {0} s', [_left])),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+        TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('Cancelar'))),
         FilledButton.icon(
           autofocus: true,
           icon: const Icon(Icons.play_arrow),
-          label: const Text('Ver ahora'),
+          label: Text(tr('Ver ahora')),
           onPressed: () => Navigator.pop(context, true),
         ),
       ],
@@ -172,13 +173,17 @@ class _NextEpisodeDialogState extends State<NextEpisodeDialog> {
 Future<void> _noVlc(BuildContext context, String player) => showDialog<void>(
   context: context,
   builder: (c) => AlertDialog(
-    title: Text('Falta $player'),
+    title: Text(tr('Falta {0}', [player])),
     content: Text(
       Platform.isAndroid
-          ? 'Este aparato reproduce con $player. Instálalo desde Google Play o, en Fire TV, desde la Appstore de '
-                'Amazon, o elige otro en Ajustes → Reproductor.'
-          : 'EteroTV usa VLC para reproducir. Instálalo desde videolan.org (versión de 64 bits) y vuelve a intentarlo.',
+          ? tr(
+              'Este aparato reproduce con {0}. Instálalo desde Google Play o, en Fire TV, desde la Appstore de Amazon, o elige otro en Ajustes → Reproductor.',
+              [player],
+            )
+          : tr(
+              'EteroTV usa VLC para reproducir. Instálalo desde videolan.org (versión de 64 bits) y vuelve a intentarlo.',
+            ),
     ),
-    actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Entendido'))],
+    actions: [TextButton(onPressed: () => Navigator.pop(c), child: Text(tr('Entendido')))],
   ),
 );

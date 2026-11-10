@@ -6,6 +6,7 @@ import '../player/vlc.dart';
 import '../state/app_state.dart';
 import 'google_sync.dart';
 import 'pin.dart';
+import 'i18n.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -44,23 +45,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _choosePlayer(AppState s, AndroidPlayer current) async {
-    final p = await showDialog<AndroidPlayer>(
-      context: context,
-      builder: (c) => SimpleDialog(
-        title: const Text('Reproducir con'),
-        children: [
-          for (final p in AndroidPlayer.values)
-            ListTile(
-              autofocus: p == current,
-              leading: Icon(p == current ? Icons.radio_button_checked : Icons.radio_button_unchecked),
-              title: Text(p.label),
-              onTap: () => Navigator.pop(c, p),
-            ),
-        ],
-      ),
-    );
+    final p = await _choose(tr('Reproducir con'), AndroidPlayer.values, current, (p) => p.label);
     if (p != null) await s.setAndroidPlayer(p);
   }
+
+  Future<T?> _choose<T>(String title, List<T> values, T current, String Function(T) label) => showDialog<T>(
+    context: context,
+    builder: (c) => SimpleDialog(
+      title: Text(title),
+      children: [
+        for (final v in values)
+          ListTile(
+            autofocus: v == current,
+            leading: Icon(v == current ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+            title: Text(label(v)),
+            onTap: () => Navigator.pop(c, v),
+          ),
+      ],
+    ),
+  );
+
+  /// Android: the players take no language from another app, so this says
+  /// where to set it in the one this device uses.
+  void _playerLanguageHelp(AndroidPlayer p) => showDialog<void>(
+    context: context,
+    builder: (c) => AlertDialog(
+      title: Text(tr('Audio y subtítulos en {0}', [p.label])),
+      content: SingleChildScrollView(
+        child: Text(switch (p) {
+          AndroidPlayer.vlc => tr(
+            'Se configura una vez en VLC:\n\n'
+            '1. Abre VLC y entra a Ajustes (⚙, o «Más» → Ajustes).\n'
+            '2. Audio → «Idioma de audio preferido».\n'
+            '3. Subtítulos → «Idioma de subtítulos preferido».\n\n'
+            'Si el video no tiene ese idioma, VLC usa el que trae el video. '
+            'Los nombres pueden cambiar un poco según la versión de VLC.',
+          ),
+          AndroidPlayer.just => tr(
+            'Se configura una vez:\n\n'
+            '1. Audio: abre Just Player, entra a sus ajustes (⚙) y elige el idioma en «Idioma del audio» '
+            '(por defecto usa el idioma del aparato).\n'
+            '2. Subtítulos: Just Player sigue los subtítulos de Android. En la TV: Ajustes → Accesibilidad → '
+            'Subtítulos → Idioma.\n\n'
+            'Si el video no tiene ese idioma, se usa el que trae el video.',
+          ),
+          AndroidPlayer.mx => tr(
+            'Se configura una vez en MX Player:\n\n'
+            '1. Ajustes → Audio → «Idioma de audio».\n'
+            '2. Ajustes → Subtítulos → «Idioma preferido».\n\n'
+            'Si el video no tiene ese idioma, se usa el que trae el video.',
+          ),
+        }),
+      ),
+      actions: [TextButton(autofocus: true, onPressed: () => Navigator.pop(c), child: Text(tr('Entendido')))],
+    ),
+  );
+
+  String _trackLabel(TrackLang l) => switch (l) {
+    TrackLang.original => tr('Original del video'),
+    TrackLang.none => tr('Sin subtítulos'),
+    TrackLang.es => tr('Español'),
+    TrackLang.en => tr('Inglés'),
+    TrackLang.fr => tr('Francés'),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -71,48 +118,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
         '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} '
         '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
     return Scaffold(
-      appBar: AppBar(title: const Text('Ajustes')),
+      appBar: AppBar(title: Text(tr('Ajustes'))),
       body: ListView(
         children: [
-          const ListTile(
-            title: Text('Cuenta IPTV', style: TextStyle(fontWeight: FontWeight.bold)),
+          ListTile(
+            title: Text(tr('Cuenta IPTV'), style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           ListTile(
             leading: const Icon(Icons.dns),
             title: Text(s.creds?.server ?? ''),
-            subtitle: Text('Usuario: ${s.creds?.username ?? ''}'),
+            subtitle: Text(tr('Usuario: {0}', [s.creds?.username ?? ''])),
           ),
           if (a != null) ...[
             ListTile(
               leading: const Icon(Icons.verified_user),
-              title: Text('Estado: ${a.status}'),
-              subtitle: a.expires == null ? null : Text('Vence: ${date(a.expires!)}'),
+              title: Text(tr('Estado: {0}', [a.status])),
+              subtitle: a.expires == null ? null : Text(tr('Vence: {0}', [date(a.expires!)])),
             ),
             ListTile(
               leading: const Icon(Icons.devices),
-              title: Text('Reproducciones en uso: ${a.activeConnections} de ${a.maxConnections}'),
+              title: Text(tr('Reproducciones en uso: {0} de {1}', [a.activeConnections, a.maxConnections])),
             ),
           ] else if (_accountError != null)
             ListTile(leading: const Icon(Icons.error_outline), title: Text(_accountError!)),
           const Divider(),
-          const ListTile(
-            title: Text('Lista', style: TextStyle(fontWeight: FontWeight.bold)),
+          ListTile(
+            title: Text(tr('Lista'), style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           ListTile(
             leading: const Icon(Icons.list),
             title: Text(
-              '${_counts[Kind.live] ?? '…'} canales, ${_counts[Kind.movie] ?? '…'} películas, '
-              '${_counts[Kind.series] ?? '…'} series',
+              tr('{0} canales, {1} películas, {2} series', [
+                _counts[Kind.live] ?? '…',
+                _counts[Kind.movie] ?? '…',
+                _counts[Kind.series] ?? '…',
+              ]),
             ),
             subtitle: Text(
-              last == null ? 'Nunca actualizada' : 'Actualizada el ${date(last)} (se actualiza sola cada 24 h)',
+              last == null
+                  ? tr('Nunca actualizada')
+                  : tr('Actualizada el {0} (se actualiza sola cada 24 h)', [date(last)]),
             ),
           ),
           ListTile(
             leading: s.refreshing
                 ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.refresh),
-            title: Text(s.refreshing ? s.refreshStep : 'Actualizar la lista ahora'),
+            title: Text(s.refreshing ? s.refreshStep : tr('Actualizar la lista ahora')),
             enabled: !s.refreshing,
             onTap: () async {
               await s.refreshCatalog();
@@ -120,82 +172,129 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           const Divider(),
-          const ListTile(
-            title: Text('Reproductor', style: TextStyle(fontWeight: FontWeight.bold)),
+          ListTile(
+            title: Text(tr('Reproductor'), style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           if (s.androidPlayer case final p?)
             ListTile(
               leading: const Icon(Icons.play_circle_outline),
-              title: Text('Reproducir con: ${p.label}'),
-              subtitle: const Text(
-                'Solo en este aparato. VLC es el normal; Just Player o MX Player sirven donde VLC no funciona '
-                '(tienen que estar instalados). Todos devuelven hasta dónde viste.',
+              title: Text(tr('Reproducir con: {0}', [p.label])),
+              subtitle: Text(
+                tr(
+                  'Solo en este aparato. VLC es el normal; Just Player o MX Player sirven donde VLC no funciona (tienen que estar instalados). Todos devuelven hasta dónde viste.',
+                ),
               ),
               onTap: () => _choosePlayer(s, p),
             )
           else
             ListTile(
               leading: Icon(_vlc == true ? Icons.check_circle : Icons.warning_amber),
-              title: Text(_vlc == null ? 'Buscando VLC…' : (_vlc! ? 'VLC encontrado' : 'VLC no está instalado')),
+              title: Text(
+                _vlc == null ? tr('Buscando VLC…') : (_vlc! ? tr('VLC encontrado') : tr('VLC no está instalado')),
+              ),
             ),
           const Divider(),
-          const ListTile(
-            title: Text('Control remoto', style: TextStyle(fontWeight: FontWeight.bold)),
+          ListTile(
+            title: Text(tr('Idioma'), style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
-          const ListTile(
+          ListTile(
+            leading: const Icon(Icons.translate),
+            title: Text(tr('Idioma de la app: {0}', [s.uiLanguage.label])),
+            subtitle: Text(tr('Solo en este aparato.')),
+            onTap: () async {
+              final l = await _choose(tr('Idioma de la app'), UiLang.values, s.uiLanguage, (l) => l.label);
+              if (l != null) await s.setUiLanguage(l);
+            },
+          ),
+          if (s.androidPlayer case final p?)
+            ListTile(
+              leading: const Icon(Icons.subtitles_outlined),
+              title: Text(tr('Audio y subtítulos en {0}', [p.label])),
+              subtitle: Text(tr('Se eligen en el reproductor: toca para ver cómo.')),
+              onTap: () => _playerLanguageHelp(p),
+            )
+          else ...[
+            ListTile(
+              leading: const Icon(Icons.record_voice_over_outlined),
+              title: Text(tr('Audio: {0}', [_trackLabel(s.audioLang)])),
+              subtitle: Text(tr('Si el video no lo tiene, se usa su audio original.')),
+              onTap: () async {
+                const v = [TrackLang.original, TrackLang.es, TrackLang.en, TrackLang.fr];
+                final l = await _choose(tr('Idioma del audio'), v, s.audioLang, _trackLabel);
+                if (l != null) await s.setAudioLang(l);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.subtitles_outlined),
+              title: Text(tr('Subtítulos: {0}', [_trackLabel(s.subLang)])),
+              subtitle: Text(tr('Si el video no los tiene en ese idioma, no se muestran.')),
+              onTap: () async {
+                const v = [TrackLang.none, TrackLang.es, TrackLang.en, TrackLang.fr];
+                final l = await _choose(tr('Idioma de los subtítulos'), v, s.subLang, _trackLabel);
+                if (l != null) await s.setSubLang(l);
+              },
+            ),
+          ],
+          const Divider(),
+          ListTile(
+            title: Text(tr('Control remoto'), style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          ListTile(
             leading: Icon(Icons.settings_remote_outlined),
-            title: Text('Más opciones: mantén OK medio segundo, o el botón ≡ del control de Fire TV'),
+            title: Text(tr('Más opciones: mantén OK medio segundo, o el botón ≡ del control de Fire TV')),
             subtitle: Text(
-              'Sirve en pósters, «Continuar viendo» y carpetas (proteger con PIN). Es lo mismo que mantener '
-              'presionado en el celular.',
+              tr(
+                'Sirve en pósters, «Continuar viendo» y carpetas (proteger con PIN). Es lo mismo que mantener presionado en el celular.',
+              ),
             ),
           ),
-          const ListTile(
+          ListTile(
             leading: Icon(Icons.arrow_back),
-            title: Text('Atrás vuelve a Inicio; en Inicio, Atrás dos veces cierra la app'),
-            subtitle: Text('En los buscadores, OK abre el teclado y las flechas arriba y abajo salen del campo.'),
+            title: Text(tr('Atrás vuelve a Inicio; en Inicio, Atrás dos veces cierra la app')),
+            subtitle: Text(tr('En los buscadores, OK abre el teclado y las flechas arriba y abajo salen del campo.')),
           ),
           const Divider(),
           const SyncSection(),
           const Divider(),
-          const ListTile(
-            title: Text('Carpetas con PIN', style: TextStyle(fontWeight: FontWeight.bold)),
+          ListTile(
+            title: Text(tr('Carpetas con PIN'), style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           ListTile(
             leading: const Icon(Icons.lock_outline),
             title: Text(
               s.lockedCount == 0
-                  ? 'Ninguna carpeta protegida'
-                  : (s.lockedCount == 1 ? '1 carpeta protegida' : '${s.lockedCount} carpetas protegidas'),
+                  ? tr('Ninguna carpeta protegida')
+                  : (s.lockedCount == 1 ? tr('1 carpeta protegida') : tr('{0} carpetas protegidas', [s.lockedCount])),
             ),
-            subtitle: const Text(
-              'Para proteger una carpeta, ábrela desde «Carpetas y búsqueda» y toca el candado '
-              '(o mantenla presionada: en el control, mantén OK).',
+            subtitle: Text(
+              tr(
+                'Para proteger una carpeta, ábrela desde «Carpetas y búsqueda» y toca el candado (o mantenla presionada: en el control, mantén OK).',
+              ),
             ),
           ),
           if (s.hasPin) ...[
             ListTile(
               leading: const Icon(Icons.pin_outlined),
-              title: const Text('Cambiar el PIN'),
+              title: Text(tr('Cambiar el PIN')),
               onTap: () async {
-                final old = await askPin(context, title: 'PIN actual', forgot: true);
+                final old = await askPin(context, title: tr('PIN actual'), forgot: true);
                 if (old == null || !context.mounted) return;
                 if (old == 'forgot') {
                   await resetPin(context);
                 } else if (s.checkPin(old)) {
-                  await createPin(context, title: 'PIN nuevo');
+                  await createPin(context, title: tr('PIN nuevo'));
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN incorrecto.')));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('PIN incorrecto.'))));
                 }
               },
             ),
             ListTile(
               leading: const Icon(Icons.lock),
-              title: const Text('Bloquear ya las carpetas abiertas'),
+              title: Text(tr('Bloquear ya las carpetas abiertas')),
               onTap: () async {
                 await s.lockAll();
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Carpetas bloqueadas.')));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Carpetas bloqueadas.'))));
                 }
               },
             ),
@@ -203,19 +302,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),
-            title: const Text('Cambiar de cuenta IPTV'),
-            subtitle: const Text(
-              'Borra el usuario y la contraseña de este dispositivo. Favoritos y progreso se conservan.',
+            title: Text(tr('Cambiar de cuenta IPTV')),
+            subtitle: Text(
+              tr('Borra el usuario y la contraseña de este dispositivo. Favoritos y progreso se conservan.'),
             ),
             onTap: () async {
               final ok = await showDialog<bool>(
                 context: context,
                 builder: (c) => AlertDialog(
-                  title: const Text('¿Cambiar de cuenta?'),
-                  content: const Text('Tendrás que volver a escribir la URL, el usuario y la contraseña.'),
+                  title: Text(tr('¿Cambiar de cuenta?')),
+                  content: Text(tr('Tendrás que volver a escribir la URL, el usuario y la contraseña.')),
                   actions: [
-                    TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
-                    TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Cambiar')),
+                    TextButton(onPressed: () => Navigator.pop(c, false), child: Text(tr('Cancelar'))),
+                    TextButton(onPressed: () => Navigator.pop(c, true), child: Text(tr('Cambiar'))),
                   ],
                 ),
               );
@@ -225,7 +324,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
-          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '0.7.0'),
+          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '0.8.0'),
         ],
       ),
     );

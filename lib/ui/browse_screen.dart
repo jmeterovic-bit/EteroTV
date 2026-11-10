@@ -14,12 +14,13 @@ import 'play.dart';
 import 'remote.dart';
 import 'series_screen.dart';
 import 'widgets.dart';
+import 'i18n.dart';
 
 String kindTitle(Kind k) => switch (k) {
-  Kind.live => 'Canales',
-  Kind.movie => 'Películas',
-  Kind.series => 'Series',
-  Kind.episode => 'Episodios',
+  Kind.live => tr('Canales'),
+  Kind.movie => tr('Películas'),
+  Kind.series => tr('Series'),
+  Kind.episode => tr('Episodios'),
 };
 
 /// Id of the "Favourites" folder shown first in every kind.
@@ -31,8 +32,8 @@ const inProgressFolder = '__a_medias__';
 bool isSpecialFolder(Category c) => c.id == favoritesFolder || c.id == inProgressFolder;
 
 String folderTitle(Category c) => switch (c.id) {
-  favoritesFolder => 'Favoritos',
-  inProgressFolder => 'Seguir viendo',
+  favoritesFolder => tr('Favoritos'),
+  inProgressFolder => tr('Seguir viendo'),
   _ => c.name,
 };
 
@@ -56,9 +57,9 @@ class _BrowseScreenState extends State<BrowseScreen> {
     super.initState();
     context.read<AppState>().db.categories(widget.kind).then((c) {
       if (!mounted) return;
-      final fav = Category(widget.kind, favoritesFolder, 'Favoritos');
+      final fav = Category(widget.kind, favoritesFolder, tr('Favoritos'));
       setState(() {
-        _cats = [if (widget.kind != Kind.live) Category(widget.kind, inProgressFolder, 'Seguir viendo'), fav, ...c];
+        _cats = [if (widget.kind != Kind.live) Category(widget.kind, inProgressFolder, tr('Seguir viendo')), fav, ...c];
         _selected = fav;
       });
     });
@@ -171,7 +172,7 @@ class _KindSearchState extends State<_KindSearch> {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      _SearchField(hint: 'Buscar en ${kindTitle(widget.kind)}', onChanged: _changed),
+      _SearchField(hint: tr('Buscar en {0}', [kindTitle(widget.kind)]), onChanged: _changed),
       Expanded(
         child: _q.isEmpty ? widget.child : ItemsList(kind: widget.kind, items: _results),
       ),
@@ -294,13 +295,15 @@ class _ItemsViewState extends State<ItemsView> {
         Row(
           children: [
             Expanded(
-              child: _SearchField(hint: 'Buscar', onChanged: _changed),
+              child: _SearchField(hint: tr('Buscar'), onChanged: _changed),
             ),
             if (!isSpecialFolder(widget.category))
               Padding(
                 padding: const EdgeInsets.only(right: 8, top: 4),
                 child: IconButton(
-                  tooltip: st.isProtected(widget.category) ? 'Quitar el PIN de esta carpeta' : 'Proteger con PIN',
+                  tooltip: st.isProtected(widget.category)
+                      ? tr('Quitar el PIN de esta carpeta')
+                      : tr('Proteger con PIN'),
                   icon: Icon(st.isProtected(widget.category) ? Icons.lock : Icons.lock_outline),
                   onPressed: () => toggleProtection(context, widget.category, folderName),
                 ),
@@ -313,8 +316,11 @@ class _ItemsViewState extends State<ItemsView> {
             child: SegmentedButton<bool>(
               showSelectedIcon: false,
               segments: [
-                ButtonSegment(value: false, label: Text('Solo en $folderName', overflow: TextOverflow.ellipsis)),
-                ButtonSegment(value: true, label: Text('En todo ${kindTitle(kind)}')),
+                ButtonSegment(
+                  value: false,
+                  label: Text(tr('Solo en {0}', [folderName]), overflow: TextOverflow.ellipsis),
+                ),
+                ButtonSegment(value: true, label: Text(tr('En todo {0}', [kindTitle(kind)]))),
               ],
               selected: {_everywhere},
               onSelectionChanged: (v) {
@@ -330,12 +336,12 @@ class _ItemsViewState extends State<ItemsView> {
               ? Center(
                   child: Text(
                     _q.isNotEmpty
-                        ? 'Sin resultados'
+                        ? tr('Sin resultados')
                         : (isFavorites
-                              ? 'Marca con la estrella para tenerlos aquí.'
+                              ? tr('Marca con la estrella para tenerlos aquí.')
                               : isInProgress
-                              ? 'Aquí aparece lo que empezaste y no terminaste.'
-                              : 'Carpeta vacía'),
+                              ? tr('Aquí aparece lo que empezaste y no terminaste.')
+                              : tr('Carpeta vacía')),
                   ),
                 )
               : ItemsList(kind: kind, items: shown, autofocus: widget.autofocus && _q.isEmpty),
@@ -416,7 +422,7 @@ class ChannelTile extends StatelessWidget {
         onTap: play,
         onLongPress: () => toggleFavoriteWithNote(context, item),
         trailing: IconButton(
-          tooltip: fav ? 'Quitar de favoritos' : 'Agregar a favoritos',
+          tooltip: fav ? tr('Quitar de favoritos') : tr('Agregar a favoritos'),
           icon: Icon(fav ? Icons.star : Icons.star_border, color: fav ? Colors.amber : null),
           onPressed: () => context.read<AppState>().toggleFavorite(item),
         ),

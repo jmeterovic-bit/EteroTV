@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +16,7 @@ import 'platform/device.dart';
 import 'state/app_state.dart';
 import 'sync/sync_service.dart';
 import 'ui/home_screen.dart';
+import 'ui/i18n.dart';
 import 'ui/login_screen.dart';
 import 'ui/remote.dart';
 import 'ui/theme.dart';
@@ -59,7 +61,14 @@ class EteroApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final signedIn = context.select<AppState, bool>((s) => s.creds != null);
+    final lang = context.select<AppState, UiLang>((s) => s.uiLanguage);
     return MaterialApp(
+      // A new language builds every screen again (the texts are read when
+      // they are built).
+      key: ValueKey(lang),
+      locale: Locale(lang.name),
+      supportedLocales: [for (final l in UiLang.values) Locale(l.name)],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       title: 'EteroTV',
       debugShowCheckedModeBanner: false,
       theme: eteroTheme(),

@@ -12,6 +12,7 @@ import 'package:eterotv/sync/sync_service.dart';
 import 'package:eterotv/ui/browse_screen.dart';
 import 'package:eterotv/ui/cards.dart';
 import 'package:eterotv/ui/home_screen.dart';
+import 'package:eterotv/ui/i18n.dart';
 import 'package:eterotv/ui/theme.dart';
 import 'package:eterotv/ui/tv_focus.dart';
 import 'package:flutter/material.dart';
@@ -285,6 +286,20 @@ void main() {
     await press(tester, LogicalKeyboardKey.select, 'solo películas');
     await wait(tester);
     expect(find.textContaining('Título m1'), findsWidgets);
+  });
+
+  testWidgets('Inicio en inglés y en francés', (tester) async {
+    addTearDown(() => uiLang = UiLang.es);
+    uiLang = UiLang.en;
+    await open(tester, const HomeScreen());
+    expect(find.text('Home'), findsWidgets);
+    expect(find.text('Continue watching'), findsOneWidget);
+    expect(find.text('My list'), findsOneWidget);
+    uiLang = UiLang.fr;
+    await tester.pumpWidget(const SizedBox());
+    await open(tester, const HomeScreen());
+    expect(find.text('Accueil'), findsWidgets);
+    expect(find.text('Ma liste'), findsOneWidget);
   });
 
   testWidgets('Series: subir pasa por cada fila antes de «Carpetas y búsqueda»', (tester) async {

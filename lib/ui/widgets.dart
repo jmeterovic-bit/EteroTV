@@ -4,6 +4,7 @@ import '../logic/progress.dart';
 import 'remote.dart';
 import 'theme.dart';
 import 'tv_focus.dart';
+import 'i18n.dart';
 
 /// A poster/card that grows and gets a coloured border when focused, so it
 /// is easy to follow with the TV remote. Enter/OK activates it.
@@ -173,9 +174,9 @@ class _ShelfState extends State<Shelf> {
                   TextButton(
                     focusNode: _seeAll,
                     onPressed: onSeeAll,
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: [Text('Ver todo'), Icon(Icons.chevron_right)],
+                      children: [Text(tr('Ver todo')), Icon(Icons.chevron_right)],
                     ),
                   ),
               ],

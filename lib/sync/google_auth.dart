@@ -8,6 +8,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../ui/i18n.dart';
+
 /// OAuth client, injected at build time (GitHub secrets): a "Desktop app"
 /// client, for the browser sign-in on phone and PC. TVs get the session from
 /// one of those devices (tv_link.dart): Google refuses drive.appdata in its
@@ -90,7 +92,7 @@ class GoogleAuth {
 
   Future<void> _keep(Map<String, dynamic> token, String kind) async {
     final refresh = token['refresh_token'] as String?;
-    if (refresh == null) throw GoogleAuthException('Google no entregó permiso permanente. Intenta de nuevo.');
+    if (refresh == null) throw GoogleAuthException(tr('Google no entregó permiso permanente. Intenta de nuevo.'));
     _refreshToken = refresh;
     _clientKind = kind;
     _setAccess(token);
@@ -114,7 +116,7 @@ class GoogleAuth {
   /// A valid access token, refreshed when needed.
   Future<String> accessToken() async {
     final refresh = _refreshToken;
-    if (refresh == null) throw GoogleAuthException('No has conectado Google en este dispositivo.');
+    if (refresh == null) throw GoogleAuthException(tr('No has conectado Google en este dispositivo.'));
     if (_accessToken != null && DateTime.now().isBefore(_expiry)) return _accessToken!;
     const c = OAuthClient.desktop;
     final r = await _http.post(
@@ -125,9 +127,9 @@ class GoogleAuth {
     if (r.statusCode != 200) {
       if (m['error'] == 'invalid_grant') {
         await signOut();
-        throw GoogleAuthException('Google cerró la sesión. Conéctalo de nuevo en Ajustes.');
+        throw GoogleAuthException(tr('Google cerró la sesión. Conéctalo de nuevo en Ajustes.'));
       }
-      throw GoogleAuthException('Google no respondió (${m['error'] ?? r.statusCode}).');
+      throw GoogleAuthException(tr('Google no respondió ({0}).', [m['error'] ?? r.statusCode]));
     }
     _setAccess(m);
     return _accessToken!;
@@ -156,7 +158,7 @@ class GoogleAuth {
     String code;
     try {
       if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-        throw GoogleAuthException('No se pudo abrir el navegador. En la TV usa «Con un código».');
+        throw GoogleAuthException(tr('No se pudo abrir el navegador. En la TV usa «Con un código».'));
       }
       code = await _waitForCode(server, state).timeout(const Duration(minutes: 10));
     } finally {
@@ -180,7 +182,9 @@ class GoogleAuth {
           },
         );
         final m = _json(r);
-        if (r.statusCode != 200) throw GoogleAuthException('Google rechazó el inicio de sesión (${m['error']}).');
+        if (r.statusCode != 200) {
+          throw GoogleAuthException(tr('Google rechazó el inicio de sesión ({0}).', [m['error']]));
+        }
         await _keep(m, c.kind);
         return;
       } on SocketException catch (e) {
@@ -189,7 +193,7 @@ class GoogleAuth {
         last = e;
       }
     }
-    throw GoogleAuthException('Sin conexión para terminar el inicio de sesión: $last');
+    throw GoogleAuthException(tr('Sin conexión para terminar el inicio de sesión: {0}', [last]));
   }
 
   static Future<String> _waitForCode(HttpServer server, String state) async {
@@ -209,14 +213,14 @@ class GoogleAuth {
         ..write(
           '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"></head>'
           '<body style="font:20px sans-serif;text-align:center;padding-top:40px;background:#141414;color:#eee">'
-          '${ok ? '&#10003; EteroTV<br><br>Vuelve a la app.' : 'No se pudo iniciar sesión: ${error ?? 'estado'}'}'
+          '${ok ? '&#10003; EteroTV<br><br>${tr('Vuelve a la app.')}' : tr('No se pudo iniciar sesión: {0}', [error ?? 'state'])}'
           '</body></html>',
         );
       await req.response.close();
-      if (!ok) throw GoogleAuthException('Google: ${error ?? 'respuesta inesperada'}');
+      if (!ok) throw GoogleAuthException(tr('Google: {0}', [error ?? tr('respuesta inesperada')]));
       return code;
     }
-    throw GoogleAuthException('Se cerró la ventana de inicio de sesión.');
+    throw GoogleAuthException(tr('Se cerró la ventana de inicio de sesión.'));
   }
 
   // ---- Passing the session to a TV (see tv_link.dart) ----
@@ -233,7 +237,7 @@ class GoogleAuth {
   /// Google accepts it.
   Future<void> adoptSession(Map<String, dynamic> session) async {
     final refresh = session['refresh_token'];
-    if (refresh is! String || refresh.isEmpty) throw GoogleAuthException('La sesión recibida no sirve.');
+    if (refresh is! String || refresh.isEmpty) throw GoogleAuthException(tr('La sesión recibida no sirve.'));
     final previous = (_refreshToken, _clientKind, _accessToken);
     _refreshToken = refresh;
     _clientKind = (session['client'] as String?) ?? 'desktop';

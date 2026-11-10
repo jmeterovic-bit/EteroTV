@@ -6,6 +6,7 @@ import '../logic/progress.dart';
 import '../state/app_state.dart';
 import 'play.dart';
 import 'widgets.dart';
+import 'i18n.dart';
 
 class MovieScreen extends StatefulWidget {
   const MovieScreen({super.key, required this.item});
@@ -62,7 +63,7 @@ class _MovieScreenState extends State<MovieScreen> {
                   if (canResume) ...[
                     const SizedBox(height: 8),
                     LinearProgressIndicator(value: fraction(pos, dur)),
-                    Text('Vas en ${progressLabel(pos, dur)}'),
+                    Text(tr('Vas en {0}', [progressLabel(pos, dur)])),
                   ],
                   const SizedBox(height: 16),
                   Wrap(
@@ -72,13 +73,13 @@ class _MovieScreenState extends State<MovieScreen> {
                       FilledButton.icon(
                         autofocus: true,
                         icon: const Icon(Icons.play_arrow),
-                        label: Text(canResume ? 'Continuar' : 'Ver'),
+                        label: Text(canResume ? tr('Continuar') : tr('Ver')),
                         onPressed: () => playWithChecks(context, (st) => st.playMovie(widget.item)),
                       ),
                       if (canResume)
                         OutlinedButton.icon(
                           icon: const Icon(Icons.replay),
-                          label: const Text('Desde el principio'),
+                          label: Text(tr('Desde el principio')),
                           onPressed: () async {
                             await s.setWatched(e, false);
                             if (context.mounted) await playWithChecks(context, (st) => st.playMovie(widget.item));
@@ -86,18 +87,18 @@ class _MovieScreenState extends State<MovieScreen> {
                         ),
                       OutlinedButton.icon(
                         icon: Icon(fav ? Icons.star : Icons.star_border),
-                        label: Text(fav ? 'En favoritos' : 'Favorito'),
+                        label: Text(fav ? tr('En favoritos') : tr('Favorito')),
                         onPressed: () => s.toggleFavorite(widget.item),
                       ),
                       OutlinedButton.icon(
                         icon: Icon(e?.watched == true ? Icons.check_circle : Icons.check_circle_outline),
-                        label: Text(e?.watched == true ? 'Vista (desmarcar)' : 'Marcar como vista'),
+                        label: Text(e?.watched == true ? tr('Vista (desmarcar)') : tr('Marcar como vista')),
                         onPressed: () => s.setMovieWatched(widget.item, !(e?.watched ?? false)),
                       ),
                       if (canResume)
                         OutlinedButton.icon(
                           icon: const Icon(Icons.close),
-                          label: const Text('Quitar de Seguir viendo'),
+                          label: Text(tr('Quitar de Seguir viendo')),
                           onPressed: () => s.removeFromInProgress(widget.item),
                         ),
                     ],

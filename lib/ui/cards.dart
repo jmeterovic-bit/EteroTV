@@ -13,6 +13,7 @@ import 'series_screen.dart';
 import 'theme.dart';
 import 'tv_focus.dart';
 import 'widgets.dart';
+import 'i18n.dart';
 
 void openDetails(BuildContext context, CatalogItem item) => Navigator.push(
   context,
@@ -28,9 +29,9 @@ CatalogItem detailsItemOf(LibraryEntry e) => e.kind == Kind.episode
 
 String remainingLabel(LibraryEntry e) {
   final left = e.durationSecs - e.positionSecs;
-  final ep = e.kind == Kind.episode ? 'T${e.season} E${e.episode} · ' : '';
-  if (e.durationSecs <= 0) return '${ep}en ${formatTime(e.positionSecs)}';
-  return '${ep}quedan ${(left / 60).ceil()} min';
+  final ep = e.kind == Kind.episode ? tr('T{0} E{1} · ', [e.season, e.episode]) : '';
+  if (e.durationSecs <= 0) return ep + tr('en {0}', [formatTime(e.positionSecs)]);
+  return ep + tr('quedan {0} min', [(left / 60).ceil()]);
 }
 
 /// Big header on Inicio: the last thing watched, ready to continue.
@@ -45,7 +46,9 @@ class HeroBanner extends StatelessWidget {
     final fav = s.isFavorite(details.kind, details.id);
     final wide = MediaQuery.sizeOf(context).width >= 800;
     final title = entry.kind == Kind.episode ? entry.seriesName : entry.name;
-    final epLabel = entry.kind == Kind.episode ? 'Continuar T${entry.season} E${entry.episode}' : 'Continuar';
+    final epLabel = entry.kind == Kind.episode
+        ? tr('Continuar T{0} E{1}', [entry.season, entry.episode])
+        : tr('Continuar');
     return Container(
       height: wide ? 260 : 300,
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -105,13 +108,13 @@ class HeroBanner extends StatelessWidget {
                         flex: wide ? 0 : 2,
                         child: FilledButton.tonalIcon(
                           icon: Icon(fav ? Icons.check : Icons.add),
-                          label: const Text('Mi lista'),
+                          label: Text(tr('Mi lista')),
                           onPressed: () => s.toggleFavorite(details),
                         ),
                       ),
                       const SizedBox(width: 8),
                       IconButton.filledTonal(
-                        tooltip: 'Ficha',
+                        tooltip: tr('Ficha'),
                         icon: const Icon(Icons.info_outline),
                         onPressed: () => openDetails(context, details),
                       ),
@@ -154,17 +157,17 @@ class _ContinueCardState extends State<ContinueCard> {
             ListTile(
               autofocus: true,
               leading: const Icon(Icons.info_outline),
-              title: const Text('Ver ficha'),
+              title: Text(tr('Ver ficha')),
               onTap: () => Navigator.pop(c, 'info'),
             ),
             ListTile(
               leading: const Icon(Icons.check_circle_outline),
-              title: const Text('Marcar como visto'),
+              title: Text(tr('Marcar como visto')),
               onTap: () => Navigator.pop(c, 'watched'),
             ),
             ListTile(
               leading: const Icon(Icons.close),
-              title: const Text('Quitar de Seguir viendo'),
+              title: Text(tr('Quitar de Seguir viendo')),
               onTap: () => Navigator.pop(c, 'remove'),
             ),
           ],
@@ -259,13 +262,13 @@ class _ContinueCardState extends State<ContinueCard> {
                 ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
-                  tooltip: 'Ficha',
+                  tooltip: tr('Ficha'),
                   icon: const Icon(Icons.info_outline, size: 20),
                   onPressed: () => openDetails(context, detailsItemOf(e)),
                 ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
-                  tooltip: 'Más',
+                  tooltip: tr('Más'),
                   icon: const Icon(Icons.more_vert, size: 20),
                   onPressed: _menu,
                 ),
@@ -296,24 +299,24 @@ Future<void> showItemMenu(BuildContext context, CatalogItem item) async {
           ListTile(
             autofocus: true,
             leading: const Icon(Icons.info_outline),
-            title: const Text('Ver ficha'),
+            title: Text(tr('Ver ficha')),
             onTap: () => Navigator.pop(c, 'info'),
           ),
           ListTile(
             leading: Icon(fav ? Icons.star : Icons.star_border),
-            title: Text(fav ? 'Quitar de favoritos' : 'Agregar a favoritos'),
+            title: Text(fav ? tr('Quitar de favoritos') : tr('Agregar a favoritos')),
             onTap: () => Navigator.pop(c, 'fav'),
           ),
           if (item.kind == Kind.movie)
             ListTile(
               leading: Icon(watched ? Icons.remove_done : Icons.check_circle_outline),
-              title: Text(watched ? 'Marcar como no vista' : 'Marcar como vista'),
+              title: Text(watched ? tr('Marcar como no vista') : tr('Marcar como vista')),
               onTap: () => Navigator.pop(c, 'watched'),
             ),
           if (started)
             ListTile(
               leading: const Icon(Icons.close),
-              title: const Text('Quitar de Seguir viendo'),
+              title: Text(tr('Quitar de Seguir viendo')),
               onTap: () => Navigator.pop(c, 'remove'),
             ),
         ],
@@ -389,7 +392,9 @@ void toggleFavoriteWithNote(BuildContext context, CatalogItem item) {
     ..hideCurrentSnackBar()
     ..showSnackBar(
       SnackBar(
-        content: Text(was ? '${item.name}: quitado de favoritos' : '${item.name}: agregado a favoritos'),
+        content: Text(
+          was ? tr('{0}: quitado de favoritos', [item.name]) : tr('{0}: agregado a favoritos', [item.name]),
+        ),
         duration: const Duration(seconds: 2),
       ),
     );

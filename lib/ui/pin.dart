@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../iptv/xtream.dart';
 import '../state/app_state.dart';
 import 'remote.dart';
+import 'i18n.dart';
 
 /// Asks for a 4-digit PIN. Returns null when cancelled.
 Future<String?> askPin(BuildContext context, {required String title, String? message, bool forgot = false}) =>
@@ -42,7 +43,7 @@ class _PinDialogState extends State<_PinDialog> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (widget.message != null) ...[Text(widget.message!), const SizedBox(height: 12)],
+        if (widget.message != null) ...[Text(widget.message!), SizedBox(height: 12)],
         RemoteTextField(
           controller: _c,
           autofocus: true,
@@ -50,8 +51,8 @@ class _PinDialogState extends State<_PinDialog> {
           keyboardType: TextInputType.number,
           maxLength: 4,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 28, letterSpacing: 16),
-          decoration: const InputDecoration(hintText: '••••', counterText: ''),
+          style: TextStyle(fontSize: 28, letterSpacing: 16),
+          decoration: InputDecoration(hintText: '••••', counterText: ''),
           onChanged: (v) {
             setState(() {});
             if (v.length == 4) _done();
@@ -62,27 +63,32 @@ class _PinDialogState extends State<_PinDialog> {
     ),
     actions: [
       if (widget.forgot)
-        TextButton(onPressed: () => Navigator.pop(context, 'forgot'), child: const Text('Olvidé el PIN')),
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-      TextButton(onPressed: AppState.validPin(_c.text) ? _done : null, child: const Text('Aceptar')),
+        TextButton(onPressed: () => Navigator.pop(context, 'forgot'), child: Text(tr('Olvidé el PIN'))),
+      TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cancelar'))),
+      TextButton(onPressed: AppState.validPin(_c.text) ? _done : null, child: Text(tr('Aceptar'))),
     ],
   );
 }
 
 /// Creates the PIN (typed twice). Returns true when a PIN is set.
-Future<bool> createPin(BuildContext context, {String title = 'Crear PIN de carpetas'}) async {
+Future<bool> createPin(BuildContext context, {String? title}) async {
+  title ??= tr('Crear PIN de carpetas');
   final s = context.read<AppState>();
   final messenger = ScaffoldMessenger.of(context);
-  final a = await askPin(context, title: title, message: 'Elige 4 números. Sirve para todas las carpetas protegidas.');
+  final a = await askPin(
+    context,
+    title: title,
+    message: tr('Elige 4 números. Sirve para todas las carpetas protegidas.'),
+  );
   if (a == null || !context.mounted) return false;
-  final b = await askPin(context, title: 'Repite el PIN');
+  final b = await askPin(context, title: tr('Repite el PIN'));
   if (b == null) return false;
   if (a != b) {
-    messenger.showSnackBar(const SnackBar(content: Text('Los PIN no coinciden. No se cambió nada.')));
+    messenger.showSnackBar(SnackBar(content: Text(tr('Los PIN no coinciden. No se cambió nada.'))));
     return false;
   }
   await s.setPin(a);
-  messenger.showSnackBar(const SnackBar(content: Text('PIN guardado.')));
+  messenger.showSnackBar(SnackBar(content: Text(tr('PIN guardado.'))));
   return true;
 }
 
@@ -93,17 +99,17 @@ Future<bool> resetPin(BuildContext context) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (d) => AlertDialog(
-      title: const Text('Olvidé el PIN'),
+      title: Text(tr('Olvidé el PIN')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Escribe la contraseña de tu cuenta IPTV para elegir un PIN nuevo.'),
+          Text(tr('Escribe la contraseña de tu cuenta IPTV para elegir un PIN nuevo.')),
           RemoteTextField(controller: c, obscureText: true, autofocus: true),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancelar')),
-        TextButton(onPressed: () => Navigator.pop(d, s.checkAccountPassword(c.text)), child: const Text('Seguir')),
+        TextButton(onPressed: () => Navigator.pop(d, false), child: Text(tr('Cancelar'))),
+        TextButton(onPressed: () => Navigator.pop(d, s.checkAccountPassword(c.text)), child: Text(tr('Seguir'))),
       ],
     ),
   );
@@ -111,11 +117,11 @@ Future<bool> resetPin(BuildContext context) async {
   if (!context.mounted) return false;
   if (ok != true) {
     if (ok == false) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contraseña incorrecta.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Contraseña incorrecta.'))));
     }
     return false;
   }
-  return createPin(context, title: 'PIN nuevo');
+  return createPin(context, title: tr('PIN nuevo'));
 }
 
 /// Asks the PIN and opens [c] until the app closes.
@@ -123,7 +129,7 @@ Future<bool> unlockFolder(BuildContext context, Category c, String name) async {
   final s = context.read<AppState>();
   while (true) {
     if (!context.mounted) return false;
-    final pin = await askPin(context, title: 'Carpeta protegida', message: name, forgot: true);
+    final pin = await askPin(context, title: tr('Carpeta protegida'), message: name, forgot: true);
     if (pin == null || !context.mounted) return false;
     if (pin == 'forgot') {
       if (!await resetPin(context)) return false;
@@ -131,7 +137,7 @@ Future<bool> unlockFolder(BuildContext context, Category c, String name) async {
     }
     if (await s.unlock(c, pin)) return true;
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN incorrecto.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('PIN incorrecto.'))));
     }
   }
 }
@@ -150,7 +156,9 @@ Future<void> toggleProtection(BuildContext context, Category c, String name) asy
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('«$name» queda protegida. Se vuelve a bloquear al cerrar la app o tras una hora fuera de ella.'),
+        content: Text(
+          tr('«{0}» queda protegida. Se vuelve a bloquear al cerrar la app o tras una hora fuera de ella.', [name]),
+        ),
       ),
     );
   }
@@ -169,12 +177,12 @@ class LockedFolder extends StatelessWidget {
       children: [
         const Icon(Icons.lock, size: 56, color: Colors.white54),
         const SizedBox(height: 12),
-        const Text('Carpeta protegida con PIN'),
+        Text(tr('Carpeta protegida con PIN')),
         const SizedBox(height: 16),
         FilledButton.icon(
           autofocus: true,
           icon: const Icon(Icons.lock_open),
-          label: const Text('Ingresar PIN'),
+          label: Text(tr('Ingresar PIN')),
           onPressed: () => unlockFolder(context, category, name),
         ),
       ],

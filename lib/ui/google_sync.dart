@@ -9,6 +9,7 @@ import '../sync/sync_service.dart';
 import '../sync/tv_link.dart';
 import 'remote.dart';
 import 'theme.dart';
+import 'i18n.dart';
 
 /// Connects this device to Google Drive: the browser on phone and PC; on a
 /// TV (or when chosen), the session comes from a device already connected.
@@ -23,19 +24,19 @@ Future<bool> connectGoogle(BuildContext context) async {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const ListTile(
-              title: Text('Conectar con Google', style: TextStyle(fontWeight: FontWeight.bold)),
+            ListTile(
+              title: Text(tr('Conectar con Google'), style: TextStyle(fontWeight: FontWeight.bold)),
             ),
             ListTile(
               leading: const Icon(Icons.open_in_browser),
-              title: const Text('En este dispositivo'),
-              subtitle: const Text('Se abre el navegador para elegir tu cuenta.'),
+              title: Text(tr('En este dispositivo')),
+              subtitle: Text(tr('Se abre el navegador para elegir tu cuenta.')),
               onTap: () => Navigator.pop(c, 'browser'),
             ),
             ListTile(
               leading: const Icon(Icons.devices),
-              title: const Text('Desde otro dispositivo ya conectado'),
-              subtitle: const Text('Muestra un código para escribirlo en el otro equipo, en la misma red.'),
+              title: Text(tr('Desde otro dispositivo ya conectado')),
+              subtitle: Text(tr('Muestra un código para escribirlo en el otro equipo, en la misma red.')),
               onTap: () => Navigator.pop(c, 'other'),
             ),
           ],
@@ -53,10 +54,10 @@ Future<bool> connectGoogle(BuildContext context) async {
   final messenger = ScaffoldMessenger.of(context);
   try {
     await sync.signInWithBrowser();
-    messenger.showSnackBar(const SnackBar(content: Text('Google conectado.')));
+    messenger.showSnackBar(SnackBar(content: Text(tr('Google conectado.'))));
     return true;
   } catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text('No se pudo conectar: $e')));
+    messenger.showSnackBar(SnackBar(content: Text(tr('No se pudo conectar: {0}', [e]))));
     return false;
   }
 }
@@ -129,7 +130,7 @@ class _ReceiveSessionScreenState extends State<ReceiveSessionScreen> {
       await server.done;
       await server.close();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Google conectado.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Google conectado.'))));
         Navigator.pop(context, true);
       }
     } catch (e) {
@@ -143,7 +144,7 @@ class _ReceiveSessionScreenState extends State<ReceiveSessionScreen> {
     final big = Theme.of(context).textTheme.displayMedium
         ?.copyWith(color: accent, fontWeight: FontWeight.bold, letterSpacing: 8);
     return Scaffold(
-      appBar: AppBar(title: const Text('Conectar con Google')),
+      appBar: AppBar(title: Text(tr('Conectar con Google'))),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -153,7 +154,7 @@ class _ReceiveSessionScreenState extends State<ReceiveSessionScreen> {
                   children: [
                     Text(_error!, textAlign: TextAlign.center),
                     const SizedBox(height: 16),
-                    FilledButton(autofocus: true, onPressed: _start, child: const Text('Pedir otro código')),
+                    FilledButton(autofocus: true, onPressed: _start, child: Text(tr('Pedir otro código'))),
                   ],
                 )
               : server == null || _receiving
@@ -163,28 +164,29 @@ class _ReceiveSessionScreenState extends State<ReceiveSessionScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        'En el celular o el PC donde ya conectaste Google, abre EteroTV y ve a\n'
-                        'Ajustes → Sincronización → Conectar una TV.',
+                      Text(
+                        tr(
+                          'En el celular o el PC donde ya conectaste Google, abre EteroTV y ve a\nAjustes → Sincronización → Conectar una TV.',
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
-                      Text('Elige «$_name» y escribe este código:', textAlign: TextAlign.center),
+                      Text(tr('Elige «{0}» y escribe este código:', [_name]), textAlign: TextAlign.center),
                       const SizedBox(height: 8),
                       Text('${server.code.substring(0, 3)} ${server.code.substring(3)}', style: big),
                       const SizedBox(height: 16),
-                      const Row(
+                      Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                           SizedBox(width: 12),
-                          Text('Esperando…'),
+                          Text(tr('Esperando…')),
                         ],
                       ),
                       if (_ips.isNotEmpty) ...[
                         const SizedBox(height: 16),
                         Text(
-                          'Los dos tienen que estar en la misma red. Dirección de esta TV: ${_ips.join(', ')}',
+                          tr('Los dos tienen que estar en la misma red. Dirección de esta TV: {0}', [_ips.join(', ')]),
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
@@ -193,7 +195,7 @@ class _ReceiveSessionScreenState extends State<ReceiveSessionScreen> {
                       OutlinedButton(
                         autofocus: true,
                         onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancelar'),
+                        child: Text(tr('Cancelar')),
                       ),
                     ],
                   ),
@@ -232,7 +234,7 @@ class _SendSessionScreenState extends State<SendSessionScreen> {
     final ip = await showDialog<String>(
       context: context,
       builder: (d) => AlertDialog(
-        title: const Text('Dirección de la TV'),
+        title: Text(tr('Dirección de la TV')),
         content: RemoteTextField(
           controller: c,
           autofocus: true,
@@ -241,8 +243,8 @@ class _SendSessionScreenState extends State<SendSessionScreen> {
           onSubmitted: (v) => Navigator.pop(d, v),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.pop(d, c.text), child: const Text('Buscar')),
+          TextButton(onPressed: () => Navigator.pop(d), child: Text(tr('Cancelar'))),
+          TextButton(onPressed: () => Navigator.pop(d, c.text), child: Text(tr('Buscar'))),
         ],
       ),
     );
@@ -251,9 +253,9 @@ class _SendSessionScreenState extends State<SendSessionScreen> {
     final tv = await TvLinkClient.probe(ip.trim(), timeout: const Duration(seconds: 3));
     if (!mounted) return;
     if (tv == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('En ${ip.trim()} no hay una TV esperando. Revisa que muestre el código.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('En {0} no hay una TV esperando. Revisa que muestre el código.', [ip.trim()]))),
+      );
       return;
     }
     await _send(tv);
@@ -270,7 +272,7 @@ class _SendSessionScreenState extends State<SendSessionScreen> {
       final code = await showDialog<String>(
         context: context,
         builder: (d) => AlertDialog(
-          title: Text('Código de «${tv.name}»'),
+          title: Text(tr('Código de «{0}»', [tv.name])),
           content: RemoteTextField(
             controller: c,
             autofocus: true,
@@ -282,8 +284,8 @@ class _SendSessionScreenState extends State<SendSessionScreen> {
             onSubmitted: (v) => Navigator.pop(d, v),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancelar')),
-            TextButton(onPressed: () => Navigator.pop(d, c.text), child: const Text('Conectar')),
+            TextButton(onPressed: () => Navigator.pop(d), child: Text(tr('Cancelar'))),
+            TextButton(onPressed: () => Navigator.pop(d, c.text), child: Text(tr('Conectar'))),
           ],
         ),
       );
@@ -291,12 +293,12 @@ class _SendSessionScreenState extends State<SendSessionScreen> {
       if (code == null || !mounted) return;
       try {
         await TvLinkClient.send(tv, code.replaceAll(RegExp(r'\D'), ''), session);
-        messenger.showSnackBar(SnackBar(content: Text('«${tv.name}» quedó conectada a Google.')));
+        messenger.showSnackBar(SnackBar(content: Text(tr('«{0}» quedó conectada a Google.', [tv.name]))));
         if (mounted) Navigator.pop(context);
         return;
       } on TvLinkException catch (e) {
         messenger.showSnackBar(SnackBar(content: Text(e.message)));
-        if (e.message.startsWith('El código')) continue;
+        if (e.message.startsWith(tr('El código'))) continue;
         return;
       }
     }
@@ -306,25 +308,25 @@ class _SendSessionScreenState extends State<SendSessionScreen> {
   Widget build(BuildContext context) {
     final found = _found;
     return Scaffold(
-      appBar: AppBar(title: const Text('Conectar una TV')),
+      appBar: AppBar(title: Text(tr('Conectar una TV'))),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
-          const ListTile(
+          ListTile(
             leading: Icon(Icons.info_outline),
-            title: Text('En la TV: Ajustes → Conectar con Google. Va a mostrar un código de 6 números.'),
-            subtitle: Text('La TV y este equipo tienen que estar en la misma red.'),
+            title: Text(tr('En la TV: Ajustes → Conectar con Google. Va a mostrar un código de 6 números.')),
+            subtitle: Text(tr('La TV y este equipo tienen que estar en la misma red.')),
           ),
           if (found == null)
-            const ListTile(
+            ListTile(
               leading: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
-              title: Text('Buscando televisores en tu red…'),
+              title: Text(tr('Buscando televisores en tu red…')),
             )
           else if (found.isEmpty)
-            const ListTile(
+            ListTile(
               leading: Icon(Icons.tv_off),
-              title: Text('No encontré ninguna TV esperando.'),
-              subtitle: Text('Revisa que la TV muestre el código y vuelve a buscar.'),
+              title: Text(tr('No encontré ninguna TV esperando.')),
+              subtitle: Text(tr('Revisa que la TV muestre el código y vuelve a buscar.')),
             )
           else
             for (final (i, tv) in found.indexed)
@@ -339,13 +341,13 @@ class _SendSessionScreenState extends State<SendSessionScreen> {
           const Divider(),
           ListTile(
             leading: const Icon(Icons.refresh),
-            title: const Text('Buscar de nuevo'),
+            title: Text(tr('Buscar de nuevo')),
             onTap: found == null ? null : _search,
           ),
           ListTile(
             leading: const Icon(Icons.edit),
-            title: const Text('Escribir la dirección de la TV'),
-            subtitle: const Text('Si no aparece en la lista: la TV la muestra debajo del código.'),
+            title: Text(tr('Escribir la dirección de la TV')),
+            subtitle: Text(tr('Si no aparece en la lista: la TV la muestra debajo del código.')),
             onTap: _byAddress,
           ),
         ],
@@ -360,24 +362,24 @@ class SyncSection extends StatelessWidget {
 
   String _ago(DateTime t) {
     final m = DateTime.now().difference(t).inMinutes;
-    if (m < 1) return 'hace un momento';
-    if (m < 60) return 'hace $m min';
-    return 'a las ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    if (m < 1) return tr('hace un momento');
+    if (m < 60) return tr('hace {0} min', [m]);
+    return tr('a las {0}', ['${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}']);
   }
 
   @override
   Widget build(BuildContext context) {
     final sync = context.watch<SyncService>();
-    final header = const ListTile(
-      title: Text('Sincronización (Google Drive)', style: TextStyle(fontWeight: FontWeight.bold)),
+    final header = ListTile(
+      title: Text(tr('Sincronización (Google Drive)'), style: TextStyle(fontWeight: FontWeight.bold)),
     );
     if (!GoogleAuth.configured) {
       return Column(
         children: [
           header,
-          const ListTile(
+          ListTile(
             leading: Icon(Icons.cloud_off),
-            title: Text('Esta versión se compiló sin la conexión con Google.'),
+            title: Text(tr('Esta versión se compiló sin la conexión con Google.')),
           ),
         ],
       );
@@ -388,10 +390,11 @@ class SyncSection extends StatelessWidget {
           header,
           ListTile(
             leading: const Icon(Icons.cloud_outlined),
-            title: const Text('Conectar con Google'),
-            subtitle: const Text(
-              'Favoritos, avance, cuenta IPTV, PIN y carpetas protegidas quedan iguales en todos tus dispositivos. '
-              'Se guardan en una carpeta oculta de tu Drive que solo EteroTV puede leer.',
+            title: Text(tr('Conectar con Google')),
+            subtitle: Text(
+              tr(
+                'Favoritos, avance, cuenta IPTV, PIN y carpetas protegidas quedan iguales en todos tus dispositivos. Se guardan en una carpeta oculta de tu Drive que solo EteroTV puede leer.',
+              ),
             ),
             onTap: () => connectGoogle(context),
           ),
@@ -411,43 +414,43 @@ class SyncSection extends StatelessWidget {
                 ),
           title: Text(
             sync.syncing
-                ? 'Sincronizando…'
+                ? tr('Sincronizando…')
                 : sync.error != null
-                ? 'No se pudo sincronizar'
+                ? tr('No se pudo sincronizar')
                 : last == null
-                ? 'Conectado'
-                : 'Sincronizado ${_ago(last)}',
+                ? tr('Conectado')
+                : tr('Sincronizado {0}', [_ago(last)]),
           ),
           subtitle: Text(
             sync.error ??
                 (sync.lastDevices == 0
-                    ? 'Aún no hay otros dispositivos conectados.'
+                    ? tr('Aún no hay otros dispositivos conectados.')
                     : sync.lastDevices == 1
-                    ? 'Con 1 dispositivo más.'
-                    : 'Con ${sync.lastDevices} dispositivos más.'),
+                    ? tr('Con 1 dispositivo más.')
+                    : tr('Con {0} dispositivos más.', [sync.lastDevices])),
           ),
           onTap: sync.syncing ? null : sync.syncNow,
-          trailing: TextButton(onPressed: sync.syncing ? null : sync.syncNow, child: const Text('Sincronizar')),
+          trailing: TextButton(onPressed: sync.syncing ? null : sync.syncNow, child: Text(tr('Sincronizar'))),
         ),
         ListTile(
           leading: const Icon(Icons.connected_tv),
-          title: const Text('Conectar una TV'),
-          subtitle: const Text('Le pasa esta conexión con Google a un televisor de tu red (una vez por TV).'),
+          title: Text(tr('Conectar una TV')),
+          subtitle: Text(tr('Le pasa esta conexión con Google a un televisor de tu red (una vez por TV).')),
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SendSessionScreen())),
         ),
         ListTile(
           leading: const Icon(Icons.link_off),
-          title: const Text('Desconectar Google en este dispositivo'),
-          subtitle: const Text('Lo de este dispositivo se queda; deja de compartirse.'),
+          title: Text(tr('Desconectar Google en este dispositivo')),
+          subtitle: Text(tr('Lo de este dispositivo se queda; deja de compartirse.')),
           onTap: () async {
             final ok = await showDialog<bool>(
               context: context,
               builder: (c) => AlertDialog(
-                title: const Text('¿Desconectar Google?'),
-                content: const Text('Este dispositivo deja de sincronizar. Puedes volver a conectarlo cuando quieras.'),
+                title: Text(tr('¿Desconectar Google?')),
+                content: Text(tr('Este dispositivo deja de sincronizar. Puedes volver a conectarlo cuando quieras.')),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
-                  TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Desconectar')),
+                  TextButton(onPressed: () => Navigator.pop(c, false), child: Text(tr('Cancelar'))),
+                  TextButton(onPressed: () => Navigator.pop(c, true), child: Text(tr('Desconectar'))),
                 ],
               ),
             );

@@ -5,6 +5,8 @@ import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
 
+import '../ui/i18n.dart';
+
 /// Passing the Google session from a phone or PC to a TV over the home
 /// network. Google refuses the hidden Drive folder (drive.appdata) for the
 /// TV sign-in with a code ("Invalid device flow scope"), so the TV gets the
@@ -69,7 +71,7 @@ class TvLinkServer {
     try {
       _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
     } on SocketException {
-      throw TvLinkException('No se pudo esperar la conexión en este televisor (puerto $port ocupado).');
+      throw TvLinkException(tr('No se pudo esperar la conexión en este televisor (puerto {0} ocupado).', [port]));
     }
     _server!.listen(_handle, onError: (_) {});
   }
@@ -107,7 +109,7 @@ class TvLinkServer {
         _failures++;
         if (_failures >= maxFailures) {
           await _answer(req, 429, {'error': 'too_many'});
-          _done.completeError(TvLinkException('Demasiados códigos incorrectos. Pide un código nuevo.'));
+          _done.completeError(TvLinkException(tr('Demasiados códigos incorrectos. Pide un código nuevo.')));
           await close();
           return;
         }
@@ -205,16 +207,16 @@ class TvLinkClient {
         case 200:
           return;
         case 403:
-          throw TvLinkException('El código no coincide con el de la TV.');
+          throw TvLinkException(tr('El código no coincide con el de la TV.'));
         case 429:
-          throw TvLinkException('Demasiados intentos. En la TV, pide un código nuevo.');
+          throw TvLinkException(tr('Demasiados intentos. En la TV, pide un código nuevo.'));
         default:
-          throw TvLinkException('La TV no aceptó la conexión (${res.statusCode}).');
+          throw TvLinkException(tr('La TV no aceptó la conexión ({0}).', [res.statusCode]));
       }
     } on TvLinkException {
       rethrow;
     } catch (_) {
-      throw TvLinkException('No se pudo hablar con la TV. Revisa que siga mostrando el código.');
+      throw TvLinkException(tr('No se pudo hablar con la TV. Revisa que siga mostrando el código.'));
     } finally {
       client.close(force: true);
     }
