@@ -7,6 +7,12 @@ bool isWatched(int positionSecs, int durationSecs) {
   return positionSecs >= durationSecs * 0.9 || durationSecs - positionSecs <= 180;
 }
 
+/// When to offer the next episode while it plays: the last 100 s (where the
+/// credits usually start). Later than [isWatched]: at 90 % the offer came 3
+/// minutes before the end of the story (Jose, 2026-11-10, a 46:33 episode
+/// that ended at 45:00).
+bool creditsReached(int positionSecs, int durationSecs) => durationSecs > 0 && durationSecs - positionSecs <= 100;
+
 /// Where VLC should start. The first 30 s are not worth resuming, and going
 /// back 5 s helps to pick up the thread.
 int resumeFrom(int positionSecs, int durationSecs, {required bool watched}) {

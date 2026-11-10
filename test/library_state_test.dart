@@ -70,10 +70,10 @@ void main() {
     expect(nextEpisode(info, s)?.number, 1);
   });
 
-  test('position from VLC is saved and shown; missing position is reported', () async {
+  test('position from the player is saved quietly; missing position is reported', () async {
     vlc.next = PlayResult(positionSecs: 600, durationSecs: 3000);
     final note = await s.playEpisode(series, ep(1, 2));
-    expect(note, contains('10:00'));
+    expect(note, isNull, reason: 'no message when it went well');
     expect(s.entry(Kind.episode, 'e12')!.positionSecs, 600);
     expect(s.inProgress(Kind.series).map((i) => i.id), ['f']);
 

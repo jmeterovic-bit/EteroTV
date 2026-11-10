@@ -916,8 +916,8 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Plays in VLC and saves where the user stopped. Returns a short note for
-  /// the user about what was saved.
+  /// Plays and saves where the user stopped. Returns a note for the user
+  /// only when the player did not say where that was.
   Future<String?> _play(LibraryEntry e, String url) async {
     if (e.kind == Kind.movie && e.durationSecs == 0) {
       // Remember the length: it helps to find the movie again after a list change.
@@ -949,7 +949,7 @@ class AppState extends ChangeNotifier {
           ? null
           : (pos, len) {
               // Windows: credits reached while VLC is still playing.
-              if (!nearEndFired && isWatched(pos, len)) {
+              if (!nearEndFired && creditsReached(pos, len)) {
                 nearEndFired = true;
                 nearEnd.value = e;
               }
@@ -967,10 +967,9 @@ class AppState extends ChangeNotifier {
     await _save(e);
     notifyListeners();
     if (e.watched && e.kind == Kind.episode) _upNext = e;
-    if (e.watched) return tr('Marcado como visto.');
-    return e.durationSecs > 0
-        ? tr('Guardado: vas en {0} de {1}.', [formatTime(e.positionSecs), formatTime(e.durationSecs)])
-        : tr('Guardado: vas en {0}.', [formatTime(e.positionSecs)]);
+    // No message when it went well: Jose did not want to see the time
+    // after each video (2026-11-10). The list shows the progress.
+    return null;
   }
 
   // ---- Folders with PIN ----

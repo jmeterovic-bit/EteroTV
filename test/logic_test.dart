@@ -15,6 +15,9 @@ void main() {
       expect(isWatched(5400, 6000), isTrue); // 90 %
       expect(isWatched(5000, 6000), isFalse);
       expect(isWatched(2500, 2640), isTrue); // < 3 min left
+      // The next episode is offered later, in the last 100 s (46:33 episode).
+      expect(creditsReached(42 * 60, 2793), isFalse);
+      expect(creditsReached(45 * 60, 2793), isTrue);
       expect(isWatched(100, 0), isFalse);
     });
 
