@@ -11,6 +11,7 @@ import 'rows.dart';
 import 'search_screen.dart';
 import 'settings_screen.dart';
 import 'theme.dart';
+import 'tv_focus.dart';
 import 'widgets.dart';
 
 /// Main frame: bottom bar on phones, side rail on wide screens and TV.
@@ -25,8 +26,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
   DateTime? _lastBack;
 
-  /// One focus scope per tab, to put the focus back on Inicio after Atrás.
-  final _scopes = List.generate(5, (i) => FocusScopeNode(debugLabel: 'tab $i'));
+  /// One focus scope per tab: it remembers the last item (for Atrás and for
+  /// coming back from the side menu), and the arrows can leave it.
+  final _scopes = List.generate(5, (i) => TvRegionScope(debugLabel: 'tab $i'));
 
   /// Folders opened with the PIN lock again after an hour away from the app.
   static const relockAfter = Duration(hours: 1);

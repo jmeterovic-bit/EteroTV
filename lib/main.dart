@@ -17,6 +17,7 @@ import 'ui/home_screen.dart';
 import 'ui/login_screen.dart';
 import 'ui/remote.dart';
 import 'ui/theme.dart';
+import 'ui/tv_focus.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,6 +61,7 @@ class EteroApp extends StatelessWidget {
       title: 'EteroTV',
       debugShowCheckedModeBanner: false,
       theme: eteroTheme(),
+      actions: tvActions,
       builder: (context, child) => runningOnTv ? TvSafeArea(child: child!) : child!,
       home: signedIn ? const HomeScreen() : const LoginScreen(),
     );

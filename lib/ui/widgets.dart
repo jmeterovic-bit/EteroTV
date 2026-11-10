@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../logic/progress.dart';
 import 'remote.dart';
 import 'theme.dart';
+import 'tv_focus.dart';
 
 /// A poster/card that grows and gets a coloured border when focused, so it
 /// is easy to follow with the TV remote. Enter/OK activates it.
@@ -54,10 +55,8 @@ class _FocusCardState extends State<FocusCard> {
           autofocus: widget.autofocus,
           onTap: widget.onTap,
           onLongPress: widget.onLongPress,
-          onFocusChange: (f) {
-            setState(() => _focused = f);
-            if (f) Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 150));
-          },
+          // The arrows scroll it into view (tv_focus.dart).
+          onFocusChange: (f) => setState(() => _focused = f),
           borderRadius: BorderRadius.circular(8),
           child: AnimatedScale(
             scale: _focused ? 1.07 : 1,
@@ -129,7 +128,7 @@ class NetImage extends StatelessWidget {
 }
 
 /// A titled horizontal row, Netflix style.
-class Shelf extends StatelessWidget {
+class Shelf extends StatefulWidget {
   const Shelf({super.key, required this.title, required this.children, this.height = 290, this.onSeeAll});
   final String title;
   final List<Widget> children;
@@ -137,7 +136,22 @@ class Shelf extends StatelessWidget {
   final VoidCallback? onSeeAll;
 
   @override
+  State<Shelf> createState() => _ShelfState();
+}
+
+class _ShelfState extends State<Shelf> {
+  /// «Ver todo» is reached with up/down only from the items right below it.
+  final _seeAll = FocusNode(debugLabel: tvAsideLabel);
+
+  @override
+  void dispose() {
+    _seeAll.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final Shelf(:title, :children, :height, :onSeeAll) = widget;
     if (children.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,6 +170,7 @@ class Shelf extends StatelessWidget {
               ),
               if (onSeeAll != null)
                 TextButton(
+                  focusNode: _seeAll,
                   onPressed: onSeeAll,
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,

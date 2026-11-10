@@ -4,6 +4,7 @@ import android.app.UiModeManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
+import android.os.SystemClock
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
@@ -65,13 +66,11 @@ class MainActivity : FlutterActivity() {
             packageManager.hasSystemFeature("amazon.hardware.fire_tv")
     }
 
-    /** How the last launch was done, to explain it when VLC sends nothing back. */
-    private var via = ""
-
     private fun play(url: String, title: String, positionMs: Long, result: MethodChannel.Result) {
         // A previous launch that never came back: close it with no data.
         pending?.success(null)
         pending = null
+        tried.clear()
         val uri = Uri.parse(url)
         fun MutableList<Pair<String, Intent>>.attempt(name: String, build: Intent.() -> Unit) =
             add(name to Intent().apply(build).apply {
@@ -97,19 +96,32 @@ class MainActivity : FlutterActivity() {
             action = Intent.ACTION_VIEW
             setPackage("org.videolan.vlc")
         }
-        for ((name, intent) in tries) {
+        queue = tries
+        pending = result
+        if (!launchNext()) {
+            pending = null
+            result.error("no_vlc", "VLC is not installed", null)
+        }
+    }
+
+    /** The ways still left to try for the current video. */
+    private var queue = mutableListOf<Pair<String, Intent>>()
+    private var launchedAt = 0L
+    private val tried = mutableListOf<String>()
+
+    private fun launchNext(): Boolean {
+        while (queue.isNotEmpty()) {
+            val (name, intent) = queue.removeAt(0)
             try {
-                pending = result
-                via = name
+                tried.add(name)
+                launchedAt = SystemClock.elapsedRealtime()
                 startActivityForResult(intent, vlcRequest)
-                return
+                return true
             } catch (e: ActivityNotFoundException) {
-                pending = null
             } catch (e: SecurityException) {
-                pending = null
             }
         }
-        result.error("no_vlc", "VLC is not installed", null)
+        return false
     }
 
     @Suppress("DEPRECATION")
@@ -118,6 +130,10 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != vlcRequest) return
         val result = pending ?: return
+        // Some VLC versions (seen on a Sony Google TV) close the player at
+        // once, with nothing: then try the next way to open it.
+        val quick = SystemClock.elapsedRealtime() - launchedAt < 4000
+        if (data == null && quick && launchNext()) return
         pending = null
         // Read as any number: some VLC versions send Int, others Long.
         val extras = data?.extras
@@ -127,7 +143,7 @@ class MainActivity : FlutterActivity() {
                 "positionMs" to num("extra_position"),
                 "durationMs" to num("extra_duration"),
                 // Only for the "VLC did not say" message: never values (the URL has the password).
-                "info" to "$via, código $resultCode, " +
+                "info" to "${tried.joinToString("→")}, código $resultCode, " +
                     (if (data == null) "sin datos" else "datos: " + (extras?.keySet()?.sorted()?.joinToString() ?: "ninguno")),
             )
         )
