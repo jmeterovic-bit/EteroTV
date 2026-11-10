@@ -1,6 +1,10 @@
 # Cambios
 
-## 1.1.2
+## 2.0.0
+- Reproductor propio, ahora el de siempre (junta lo de 1.1.0 a 1.1.2 y estos arreglos de la Fire TV):
+- Retroceder o adelantar varias veces seguidas (o mantener ◀ ▶) ya no traba el video: se salta directo al último punto pedido, en vez de una búsqueda por cada toque.
+- Al salir de un video, el reproductor suelta la imagen antes de cerrarse. Antes la app podía quedarse congelada al salir (visto en la Fire TV).
+- TV: si al volver del reproductor nada quedaba elegido, las flechas no hacían nada; ahora la selección vuelve a lo que se ve en pantalla.
 - TV: después de «Ver siguiente», los márgenes grises podían quedar pegados alrededor del video hasta cerrar la app (visto en la Fire TV). Ahora el reproductor siempre ocupa toda la pantalla.
 
 ## 1.1.1

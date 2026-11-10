@@ -322,8 +322,16 @@ bool tvKeyHandler(KeyEvent e) {
   };
   if (!arrows.contains(e.logicalKey)) return false;
   final f = FocusManager.instance.primaryFocus;
-  if (f != null && f is! FocusScopeNode) return false;
-  return tvRecoverFocus(f as FocusScopeNode?);
+  if (f != null && f is! FocusScopeNode && !_lost(f)) return false;
+  return tvRecoverFocus(f is FocusScopeNode ? f : null);
+}
+
+/// The focus sits on something that is gone or off screen (left over from
+/// the player that just closed): the arrows found nothing from there.
+bool _lost(FocusNode f) {
+  final c = f.context;
+  if (c == null || !c.mounted || f.rect.isEmpty) return true;
+  return !_shows(f, null);
 }
 
 /// When the last move was a moment ago (an arrow held down or pressed
