@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../iptv/xtream.dart';
@@ -22,6 +23,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
+  DateTime? _lastBack;
+
+  /// One focus scope per tab, to put the focus back on Inicio after Atrás.
+  final _scopes = List.generate(5, (i) => FocusScopeNode(debugLabel: 'tab $i'));
 
   /// Folders opened with the PIN lock again after an hour away from the app.
   static const relockAfter = Duration(hours: 1);
@@ -43,7 +48,36 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _life.dispose();
+    for (final s in _scopes) {
+      s.dispose();
+    }
     super.dispose();
+  }
+
+  /// Atrás: from another tab, back to Inicio; on Inicio, a second Atrás
+  /// within 2 s closes the app (so one press too many does not).
+  void _back() {
+    if (_tab != 0) {
+      final home = _scopes[0];
+      final hadFocus = home.focusedChild != null;
+      setState(() => _tab = 0);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        home.requestFocus();
+        if (!hadFocus) home.nextFocus();
+      });
+      return;
+    }
+    final now = DateTime.now();
+    final last = _lastBack;
+    if (last != null && now.difference(last) < const Duration(seconds: 2)) {
+      SystemNavigator.pop();
+      return;
+    }
+    _lastBack = now;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Pulsa Atrás otra vez para salir.'), duration: Duration(seconds: 2)));
   }
 
   static const _dest = [
@@ -64,75 +98,85 @@ class _HomeScreenState extends State<HomeScreen> {
       const KindTab(kind: Kind.live),
       const SearchScreen(autofocus: false),
     ];
-    final body = IndexedStack(index: _tab, children: pages);
-    if (wide) {
-      return Scaffold(
-        body: Row(
-          children: [
-            FocusTraversalGroup(
-              child: NavigationRail(
-                backgroundColor: const Color(0xFF101010),
-                selectedIndex: _tab,
-                onDestinationSelected: (i) => setState(() => _tab = i),
-                labelType: NavigationRailLabelType.all,
-                indicatorColor: accent.withValues(alpha: 0.25),
-                leading: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Image.asset('assets/icon.png', width: 40, height: 40),
-                ),
-                trailing: Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: IconButton(
-                    tooltip: 'Ajustes',
-                    icon: const Icon(Icons.settings_outlined),
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
-                  ),
-                ),
-                destinations: [
-                  for (final d in _dest)
-                    NavigationRailDestination(
-                      icon: Icon(d.$1),
-                      selectedIcon: Icon(d.$2, color: accent),
-                      label: Text(d.$3),
-                    ),
-                ],
+    final body = IndexedStack(
+      index: _tab,
+      children: [for (var i = 0; i < pages.length; i++) FocusScope(node: _scopes[i], child: pages[i])],
+    );
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back();
+      },
+      child: wide ? _wide(body) : _narrow(body),
+    );
+  }
+
+  Widget _wide(Widget body) => Scaffold(
+    body: Row(
+      children: [
+        FocusTraversalGroup(
+          child: NavigationRail(
+            backgroundColor: const Color(0xFF101010),
+            selectedIndex: _tab,
+            onDestinationSelected: (i) => setState(() => _tab = i),
+            labelType: NavigationRailLabelType.all,
+            indicatorColor: accent.withValues(alpha: 0.25),
+            leading: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Image.asset('assets/icon.png', width: 40, height: 40),
+            ),
+            trailing: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: IconButton(
+                tooltip: 'Ajustes',
+                icon: const Icon(Icons.settings_outlined),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
               ),
             ),
-            const VerticalDivider(width: 1),
-            Expanded(child: FocusTraversalGroup(child: body)),
-          ],
+            destinations: [
+              for (final d in _dest)
+                NavigationRailDestination(
+                  icon: Icon(d.$1),
+                  selectedIcon: Icon(d.$2, color: accent),
+                  label: Text(d.$3),
+                ),
+            ],
+          ),
         ),
-      );
-    }
-    return Scaffold(
-      extendBody: true,
-      body: body,
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(32),
-            child: NavigationBar(
-              height: 64,
-              backgroundColor: const Color(0xEE1F1F1F),
-              indicatorColor: accent.withValues(alpha: 0.25),
-              labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-              selectedIndex: _tab,
-              onDestinationSelected: (i) => setState(() => _tab = i),
-              destinations: [
-                for (final d in _dest)
-                  NavigationDestination(
-                    icon: Icon(d.$1),
-                    selectedIcon: Icon(d.$2, color: accent),
-                    label: d.$3,
-                  ),
-              ],
-            ),
+        const VerticalDivider(width: 1),
+        Expanded(child: FocusTraversalGroup(child: body)),
+      ],
+    ),
+  );
+
+  Widget _narrow(Widget body) => Scaffold(
+    extendBody: true,
+    body: body,
+    bottomNavigationBar: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(32),
+          child: NavigationBar(
+            height: 64,
+            backgroundColor: const Color(0xEE1F1F1F),
+            indicatorColor: accent.withValues(alpha: 0.25),
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+            selectedIndex: _tab,
+            onDestinationSelected: (i) => setState(() => _tab = i),
+            destinations: [
+              for (final d in _dest)
+                NavigationDestination(
+                  icon: Icon(d.$1),
+                  selectedIcon: Icon(d.$2, color: accent),
+                  label: d.$3,
+                ),
+            ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 /// Inicio: last thing watched, Continuar viendo, Mi lista, Canales favoritos

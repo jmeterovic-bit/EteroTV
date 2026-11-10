@@ -1,0 +1,85 @@
+import 'package:eterotv/ui/remote.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('RemoteMenu', () {
+    late int taps;
+    late int menus;
+
+    Future<void> pump(WidgetTester tester) async {
+      taps = 0;
+      menus = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RemoteMenu(
+              onSelect: () => taps++,
+              onMenu: () => menus++,
+              child: InkWell(autofocus: true, onTap: () => taps++, child: const Text('Póster')),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('a short OK opens the item, once', (tester) async {
+      await pump(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.select);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.select);
+      await tester.pump();
+      expect(taps, 1);
+      expect(menus, 0);
+    });
+
+    testWidgets('holding OK opens the menu and not the item', (tester) async {
+      await pump(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.select);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.select);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.select);
+      await tester.pump();
+      expect(menus, 1);
+      expect(taps, 0);
+    });
+
+    testWidgets('the menu key opens the menu', (tester) async {
+      await pump(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.contextMenu);
+      await tester.pump();
+      expect(menus, 1);
+      expect(taps, 0);
+    });
+  });
+
+  testWidgets('TV search field: arrows pass through, OK starts typing', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              RemoteTextField(tv: true, autofocus: true, onChanged: (_) {}),
+              TextButton(onPressed: () {}, child: const Text('Abajo')),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    TextField field() => tester.widget<TextField>(find.byType(TextField));
+    expect(field().readOnly, isTrue, reason: 'no keyboard while just passing through');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await tester.pump();
+    expect(field().readOnly, isFalse);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(Focus.of(tester.element(find.text('Abajo'))).hasFocus, isTrue);
+    expect(field().readOnly, isTrue, reason: 'leaving the field stops typing');
+  });
+}

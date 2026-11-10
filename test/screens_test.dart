@@ -158,6 +158,15 @@ void main() {
           File('$out/series-$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
         });
       }
+      // Atrás: back to Inicio first; on Inicio it asks before closing.
+      expect(find.text('Mi lista'), findsNothing);
+      await tester.binding.handlePopRoute();
+      await settle(tester);
+      expect(find.text('Mi lista'), findsWidgets);
+      expect(find.text('Pulsa Atrás otra vez para salir.'), findsNothing);
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.text('Pulsa Atrás otra vez para salir.'), findsOneWidget);
     });
   }
 

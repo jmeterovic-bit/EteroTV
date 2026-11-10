@@ -1,0 +1,186 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../platform/device.dart';
+
+/// Keys that mean "OK" on a TV remote, a keyboard or a gamepad.
+final _okKeys = {
+  LogicalKeyboardKey.select,
+  LogicalKeyboardKey.enter,
+  LogicalKeyboardKey.numpadEnter,
+  LogicalKeyboardKey.gameButtonA,
+};
+
+bool isOkKey(LogicalKeyboardKey k) => _okKeys.contains(k);
+
+/// The remote has no long press, so this opens an item's menu by holding OK
+/// (about half a second) or with the menu key (≡ on Fire TV). A short OK
+/// still runs [onSelect]. The phone keeps its long press on the child.
+///
+/// Wrap the focusable widget (InkWell, ListTile...) with it: key events go
+/// up from the focused widget, so this sees OK before the app does.
+class RemoteMenu extends StatefulWidget {
+  const RemoteMenu({super.key, required this.onSelect, required this.onMenu, required this.child});
+  final VoidCallback onSelect;
+  final VoidCallback? onMenu;
+  final Widget child;
+
+  static const holdTime = Duration(milliseconds: 550);
+
+  @override
+  State<RemoteMenu> createState() => _RemoteMenuState();
+}
+
+class _RemoteMenuState extends State<RemoteMenu> {
+  Timer? _hold;
+  bool _down = false;
+  bool _opened = false;
+
+  @override
+  void dispose() {
+    _hold?.cancel();
+    super.dispose();
+  }
+
+  KeyEventResult _key(FocusNode node, KeyEvent e) {
+    final menu = widget.onMenu;
+    if (menu == null) return KeyEventResult.ignored;
+    if (e.logicalKey == LogicalKeyboardKey.contextMenu) {
+      if (e is KeyDownEvent) menu();
+      return KeyEventResult.handled;
+    }
+    if (!isOkKey(e.logicalKey)) return KeyEventResult.ignored;
+    switch (e) {
+      case KeyDownEvent():
+        _down = true;
+        _opened = false;
+        _hold?.cancel();
+        _hold = Timer(RemoteMenu.holdTime, () {
+          if (!_down || !mounted) return;
+          _opened = true;
+          menu();
+        });
+      case KeyUpEvent():
+        if (!_down) return KeyEventResult.ignored;
+        _down = false;
+        _hold?.cancel();
+        if (!_opened) widget.onSelect();
+      default:
+        // Key repeats while holding: the timer decides.
+        break;
+    }
+    return KeyEventResult.handled;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      Focus(canRequestFocus: false, skipTraversal: true, onKeyEvent: _key, child: widget.child);
+}
+
+/// A search field that behaves on TV: moving through it with the arrows
+/// does not open the keyboard, OK opens it, and the arrows always lead out
+/// of it. On phone and PC it is a normal text field.
+class RemoteTextField extends StatefulWidget {
+  const RemoteTextField({
+    super.key,
+    required this.onChanged,
+    this.decoration = const InputDecoration(),
+    this.autofocus = false,
+    this.textInputAction,
+    this.tv,
+  });
+  final ValueChanged<String> onChanged;
+  final InputDecoration decoration;
+  final bool autofocus;
+  final TextInputAction? textInputAction;
+
+  /// Overrides [runningOnTv] (tests).
+  final bool? tv;
+
+  @override
+  State<RemoteTextField> createState() => _RemoteTextFieldState();
+}
+
+class _RemoteTextFieldState extends State<RemoteTextField> {
+  final _focus = FocusNode();
+  bool _typing = false;
+
+  bool get _tv => widget.tv ?? runningOnTv;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() {
+      if (!_focus.hasFocus && _typing) setState(() => _typing = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _key(FocusNode node, KeyEvent e) {
+    if (e is KeyUpEvent) return KeyEventResult.ignored;
+    final k = e.logicalKey;
+    if (!_typing && isOkKey(k)) {
+      if (e is KeyDownEvent) setState(() => _typing = true);
+      return KeyEventResult.handled;
+    }
+    final dir = switch (k) {
+      LogicalKeyboardKey.arrowUp => TraversalDirection.up,
+      LogicalKeyboardKey.arrowDown => TraversalDirection.down,
+      // While typing, left and right move the cursor.
+      LogicalKeyboardKey.arrowLeft when !_typing => TraversalDirection.left,
+      LogicalKeyboardKey.arrowRight when !_typing => TraversalDirection.right,
+      _ => null,
+    };
+    if (dir == null) return KeyEventResult.ignored;
+    _focus.focusInDirection(dir);
+    return KeyEventResult.handled;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final field = TextField(
+      focusNode: _focus,
+      autofocus: widget.autofocus,
+      readOnly: _tv && !_typing,
+      onChanged: widget.onChanged,
+      textInputAction: widget.textInputAction,
+      onSubmitted: (_) {
+        if (_typing) setState(() => _typing = false);
+      },
+      decoration: _tv && !_typing
+          ? widget.decoration.copyWith(hintText: '${widget.decoration.hintText ?? 'Buscar'} (OK para escribir)')
+          : widget.decoration,
+    );
+    if (!_tv) return field;
+    return Focus(canRequestFocus: false, skipTraversal: true, onKeyEvent: _key, child: field);
+  }
+}
+
+/// Keeps the app away from the edges that some TVs cut off (overscan).
+class TvSafeArea extends StatelessWidget {
+  const TvSafeArea({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: const Color(0xFF141414),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
+      child: MediaQuery.removePadding(
+        context: context,
+        removeLeft: true,
+        removeRight: true,
+        removeTop: true,
+        removeBottom: true,
+        child: child,
+      ),
+    ),
+  );
+}

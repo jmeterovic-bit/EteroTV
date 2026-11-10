@@ -33,11 +33,15 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | Clientes OAuth | Dos clientes nuevos en el proyecto de Google Cloud de Project Cards (escritorio y TV), en secretos de GitHub `GOOGLE_*`. Guía: `docs/CONFIGURAR-GOOGLE.md`. | Ese proyecto ya tiene Drive activado y la app publicada. |
 | Visto | Más del 90 % o menos de 3 min restantes (sin cambios). | Jose pidió confirmar el estándar (2026-11-09): Plex y Kodi usan 90 % por defecto, Jellyfin también. |
 | Siguiente episodio | Al volver de VLC con el episodio visto: diálogo «Siguiente: T E» con 10 s, «Cancelar» y «Ver ahora». En Windows, además, al llegar a los créditos (misma regla de visto) EteroTV se pone encima de VLC; si se acepta, cierra VLC y abre el siguiente. Sin revisar el límite de conexiones (el servidor aún cuenta la que se acaba de cerrar). | Pedido por Jose el 2026-11-09. En Android VLC no informa la posición mientras reproduce, así que solo se puede al volver. |
+| Control remoto: más opciones | Mantener OK ~0,5 s o el botón ≡ (Fire TV) abre el mismo menú que la pulsación larga del celular (pósters, «Continuar viendo», carpetas). Un OK corto abre al soltarlo. | Flutter no convierte un OK mantenido en pulsación larga: sin esto, proteger carpetas y los menús de los pósters no se podían usar en la TV (2026-11-10). |
+| Control remoto: Atrás | En otra pestaña, Atrás vuelve a Inicio; en Inicio, Atrás dos veces en 2 s cierra la app. | Como las apps de streaming: un Atrás de más no saca de la app. |
+| Control remoto: buscadores | En TV, pasar por el campo no abre el teclado; OK lo abre; arriba/abajo siempre salen del campo (izquierda/derecha también mientras no se escribe). | El teclado de Android TV aparecía con solo pasar por el buscador y las flechas quedaban atrapadas en el texto. |
+| Foco visible | Borde blanco en el botón enfocado (todos los tipos de botón); pósters ya crecen con borde ámbar. | El tinte de foco de Material casi no se ve en una TV. |
+| Márgenes en TV | 32 × 18 dp alrededor de toda la app, solo en TV. | Algunos televisores cortan los bordes (overscan). |
 | Firma Android | Workflow «Create Android signing key» (una vez) y secretos `ANDROID_KEYSTORE_*` | Sin clave fija, cada APK se firma con una clave temporal y no se instala encima del anterior. |
 
 ## Pendiente
-- Etapa 2 hecha en 0.4.0: falta probarla con los clientes OAuth reales (Jose debe crearlos, ver `docs/CONFIGURAR-GOOGLE.md`).
-- Etapa 3: interfaz pensada para el control remoto (ya se puede navegar con flechas, falta pulirla en TV) (el inicio de sesión con código para TV ya está desde 0.4.0).
+- Etapa 3 en 0.5.0: falta probarla en Google TV y Fire TV (menú manteniendo OK, Atrás, buscadores, márgenes). Ajustar según lo que Jose note.
 - Etapa 4: guía EPG.
 - Sin probar con el servidor real de Jose ni en dispositivos.
 
@@ -60,3 +64,5 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | 2026-11-09 | Archivos del Release y de cada compilación con la versión en el nombre (`eterotv-0.3.0.apk`, `eterotv-windows-0.3.0.zip`): con el mismo nombre siempre, el celular guardaba copias «(1)» y se instalaba una vieja. |
 | 2026-11-09 | v0.3.1: VLC en Android se abre directo en su reproductor para que devuelva la posición; aviso con detalle si no la devuelve. |
 | 2026-11-09 | v0.4.0: etapa 2, sincronización por Google Drive (biblioteca, cuenta IPTV, PIN, carpetas protegidas) con inicio de sesión por navegador o código en TV; «Siguiente episodio» con cuenta regresiva (en Windows también en los créditos). |
+| 2026-11-10 | Etapa 2 probada por Jose con los clientes OAuth reales: funciona. |
+| 2026-11-10 | v0.5.0: etapa 3, control remoto: menú manteniendo OK o con ≡, Atrás vuelve a Inicio y pide confirmar para salir, buscadores sin teclado al pasar, borde de foco en botones, márgenes en TV, ayuda en Ajustes. |
