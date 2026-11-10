@@ -1,5 +1,17 @@
 # Cambios
 
+## 0.6.3
+- TV, navegación (probada con un catálogo grande, a 960×540 como una TV 1080p):
+  - Dentro de una lista o cuadrícula, arriba va a la fila de arriba aunque esté fuera de pantalla; ya no salta a «Carpetas y búsqueda» ni a «Buscar».
+  - Si el elemento enfocado desaparece (una fila que se recarga), o una pantalla abre sin nada elegido (Ajustes, menús), la primera flecha elige algo visible. Antes no había cómo recuperar el foco.
+  - Las listas largas (Ajustes) siguen bajando aunque lo de abajo todavía no esté dibujado.
+  - «Ver todo» se alcanza con derecha al final de su fila; arriba y abajo lo saltan.
+  - Buscar: después de escribir, el foco queda en el buscador y abajo lleva a «Solo en…» / «En todo…».
+  - El menú de un póster o de «Continuar viendo» abre con «Ver ficha» elegido.
+- Episodios: mantener OK marca o desmarca visto (también con derecha hasta el ✓).
+- Canales: mantener OK agrega o quita de favoritos, en la lista y en las filas; los favoritos llevan estrella.
+- VLC en Android: espera hasta 15 s antes de dar por fallido el reproductor directo; si otra vía funciona, ese aparato no vuelve a usar el reproductor directo.
+
 ## 0.6.2
 - TV: navegación con las flechas rehecha. Arriba y abajo van a la fila de arriba o de abajo, a algo que se ve en pantalla (antes a veces saltaban a una tarjeta escondida y el foco «desaparecía»). En el tope de arriba el foco se queda donde está (antes daba la vuelta hasta el final de la lista y no se podía volver). A la izquierda, desde el principio de una fila, se llega al menú lateral; a la derecha desde el menú se vuelve a lo que estaba elegido.
 - «Ver todo» solo se alcanza desde las tarjetas que quedan justo debajo.

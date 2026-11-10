@@ -5,6 +5,7 @@ import '../iptv/xtream.dart';
 import '../logic/progress.dart';
 import '../state/app_state.dart';
 import 'play.dart';
+import 'remote.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -172,32 +173,41 @@ class _EpisodeTile extends StatelessWidget {
     final dur = (e?.durationSecs ?? 0) > 0 ? e!.durationSecs : ep.durationSecs;
     final watched = e?.watched ?? false;
     final started = e != null && e.positionSecs > 0 && !watched;
-    return ListTile(
-      leading: CircleAvatar(child: Text('${ep.number}')),
-      title: Text(ep.title.isEmpty ? 'Episodio ${ep.number}' : ep.title),
-      subtitle: started
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                LinearProgressIndicator(value: fraction(e.positionSecs, dur), color: accent),
-                Text(progressLabel(e.positionSecs, dur)),
-              ],
-            )
-          : Text(
-              [
-                if (dur > 0) formatTime(dur),
-                if (watched) 'Visto' else if (e != null && e.lastPlayed > 0) 'Empezado',
-              ].join(' · '),
-            ),
-      onTap: () => playWithChecks(context, (st) => st.playEpisode(series, ep)),
-      trailing: IconButton(
-        tooltip: watched ? 'Marcar como no visto' : 'Marcar como visto',
-        icon: Icon(
-          watched ? Icons.check_circle : Icons.check_circle_outline,
-          color: watched ? Colors.greenAccent : Colors.white38,
+    void play() => playWithChecks(context, (st) => st.playEpisode(series, ep));
+    void toggle() => s.setEpisodeWatched(series, ep, !watched);
+    // Holding OK (TV) or a long press marks it watched / not watched; the
+    // check on the right (reached with →) does the same.
+    return RemoteMenu(
+      onSelect: play,
+      onMenu: toggle,
+      child: ListTile(
+        leading: CircleAvatar(child: Text('${ep.number}')),
+        title: Text(ep.title.isEmpty ? 'Episodio ${ep.number}' : ep.title),
+        subtitle: started
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 4),
+                  LinearProgressIndicator(value: fraction(e.positionSecs, dur), color: accent),
+                  Text(progressLabel(e.positionSecs, dur)),
+                ],
+              )
+            : Text(
+                [
+                  if (dur > 0) formatTime(dur),
+                  if (watched) 'Visto' else if (e != null && e.lastPlayed > 0) 'Empezado',
+                ].join(' · '),
+              ),
+        onTap: play,
+        onLongPress: toggle,
+        trailing: IconButton(
+          tooltip: watched ? 'Marcar como no visto' : 'Marcar como visto',
+          icon: Icon(
+            watched ? Icons.check_circle : Icons.check_circle_outline,
+            color: watched ? Colors.greenAccent : Colors.white38,
+          ),
+          onPressed: toggle,
         ),
-        onPressed: () => s.setEpisodeWatched(series, ep, !watched),
       ),
     );
   }
