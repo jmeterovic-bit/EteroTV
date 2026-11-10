@@ -7,7 +7,7 @@ App propia (no copia de ninguna otra) para ver el catálogo de un servidor IPTV,
 ## Reglas que no se rompen
 - Reproductor propio por defecto (`lib/player/own_player.dart`, media_kit). VLC (y en Android Just Player o MX Player) quedan como alternativa en Ajustes → Reproductor, por aparato. Lo decidió Jose el 2026-11-10 por las limitaciones de VLC (se cuelga en su Bravia, no recibe idioma en Android). mpv no debe registrar nada: la URL lleva la contraseña.
 - No guardar en logs ni subir a ningún servicio el usuario, la contraseña o las URLs de los videos (llevan la contraseña). La única excepción es la cuenta IPTV dentro del archivo de sincronización, en la carpeta oculta del Drive del propio usuario.
-- Solo se sincroniza «mi biblioteca» (perfiles, y de cada perfil favoritos, progreso, lo visto e idiomas; además credenciales, PIN y carpetas protegidas, que son de todos). El catálogo lo baja cada dispositivo del proveedor.
+- Solo se sincroniza «mi biblioteca» (perfiles, y de cada perfil favoritos, progreso, lo visto, idiomas y marcas de «Lo nuevo»; además credenciales, PIN y carpetas protegidas, que son de todos). El catálogo lo baja cada dispositivo del proveedor.
 - Reemplazar un favorito perdido siempre lo confirma el usuario.
 
 ## Compilar
