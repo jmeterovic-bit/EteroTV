@@ -11,6 +11,7 @@ import 'package:eterotv/state/app_state.dart';
 import 'package:eterotv/ui/home_screen.dart';
 import 'package:eterotv/ui/rows.dart';
 import 'package:eterotv/ui/theme.dart';
+import 'package:eterotv/ui/tv_focus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -169,6 +170,74 @@ void main() {
       expect(find.text('Pulsa Atrás otra vez para salir.'), findsOneWidget);
     });
   }
+
+  testWidgets('TV: las flechas nunca pierden el foco', (tester) async {
+    late AppState state;
+    await tester.runAsync(() async {
+      await _font('Roboto', '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf');
+      await _font('MaterialIcons', '/opt/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
+      state = await sample();
+    });
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: state,
+        child: MaterialApp(theme: eteroTheme(), actions: tvActions, home: const HomeScreen()),
+      ),
+    );
+    await settle(tester);
+    const screen = Rect.fromLTWH(0, 0, 1280, 720);
+    FocusNode focus() => FocusManager.instance.primaryFocus!;
+    bool inRail() => focus().context!.findAncestorWidgetOfExactType<NavigationRail>() != null;
+    Future<void> press(LogicalKeyboardKey k, {required String why}) async {
+      await tester.sendKeyEvent(k);
+      await tester.pump();
+      // Rows that just appeared read their items from the database.
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+      await tester.pump(const Duration(milliseconds: 400));
+      final r = focus().rect;
+      expect(focus().context, isNotNull, reason: why);
+      expect(screen.contains(r.center), isTrue, reason: '$why: el foco quedó fuera de la pantalla ($r)');
+    }
+
+    expect(inRail(), isFalse);
+    // Down to the last row and back up to the top.
+    final seen = <FocusNode>{focus()};
+    for (var i = 0; i < 12; i++) {
+      await press(LogicalKeyboardKey.arrowDown, why: 'abajo $i');
+
+      seen.add(focus());
+    }
+    expect(seen.length, greaterThan(5), reason: 'bajó por las filas');
+    // Along the last row, then up from the right.
+    for (var i = 0; i < 6; i++) {
+      await press(LogicalKeyboardKey.arrowRight, why: 'derecha $i');
+    }
+    for (var i = 0; i < 14; i++) {
+      await press(LogicalKeyboardKey.arrowUp, why: 'arriba $i');
+      expect(inRail(), isFalse, reason: 'arriba no salta al menú');
+    }
+    // At the top, up stays and down works again.
+    final top = focus();
+    await press(LogicalKeyboardKey.arrowUp, why: 'arriba en el tope');
+    expect(focus(), top);
+    await press(LogicalKeyboardKey.arrowDown, why: 'abajo después del tope');
+    expect(focus(), isNot(top));
+    // Left reaches the side menu, right comes back to the same item.
+    final item = focus();
+    for (var i = 0; i < 10 && !inRail(); i++) {
+      await press(LogicalKeyboardKey.arrowLeft, why: 'izquierda $i');
+    }
+    expect(inRail(), isTrue, reason: 'se llega al menú de la izquierda');
+    await press(LogicalKeyboardKey.arrowDown, why: 'abajo en el menú');
+    expect(inRail(), isTrue);
+    await press(LogicalKeyboardKey.arrowUp, why: 'arriba en el menú');
+    await press(LogicalKeyboardKey.arrowRight, why: 'vuelta al contenido');
+    expect(inRail(), isFalse);
+    expect(focus(), item, reason: 'vuelve a lo que tenía');
+  });
 
   testWidgets('Series se llena cuando termina de bajar la lista', (tester) async {
     late AppState state;

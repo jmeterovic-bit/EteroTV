@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.6.2
+- TV: navegación con las flechas rehecha. Arriba y abajo van a la fila de arriba o de abajo, a algo que se ve en pantalla (antes a veces saltaban a una tarjeta escondida y el foco «desaparecía»). En el tope de arriba el foco se queda donde está (antes daba la vuelta hasta el final de la lista y no se podía volver). A la izquierda, desde el principio de una fila, se llega al menú lateral; a la derecha desde el menú se vuelve a lo que estaba elegido.
+- «Ver todo» solo se alcanza desde las tarjetas que quedan justo debajo.
+- VLC en TV: si su reproductor se cierra al instante sin decir nada (pasó en la Bravia), la app lo abre por la siguiente vía. El aviso muestra las vías probadas.
+
 ## 0.6.1
 - Arreglo: un dispositivo nuevo no recibía la cuenta IPTV, el PIN ni las carpetas protegidas si se habían guardado antes de la 0.4.0 (no tenían fecha y se tomaban como «más viejos» que nada). Ahora un dispositivo que no tiene cuenta toma la de los otros, aunque no tenga fecha.
 

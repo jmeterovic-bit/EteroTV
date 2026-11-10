@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../platform/device.dart';
+import 'tv_focus.dart';
 
 /// Keys that mean "OK" on a TV remote, a keyboard or a gamepad.
 final _okKeys = {
@@ -155,7 +156,7 @@ class _RemoteTextFieldState extends State<RemoteTextField> {
       _ => null,
     };
     if (dir == null) return KeyEventResult.ignored;
-    _focus.focusInDirection(dir);
+    tvFocusInDirection(_focus, dir);
     return KeyEventResult.handled;
   }
 
