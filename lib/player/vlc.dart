@@ -18,14 +18,34 @@ class PlayResult {
 }
 
 class VlcMissing implements Exception {
+  VlcMissing([this.player = 'VLC']);
+  final String player;
   @override
-  String toString() => 'VLC no está instalado';
+  String toString() => '$player no está instalado';
+}
+
+/// The player used on Android. VLC everywhere, except on a device where VLC
+/// does not work (Jose's Sony Bravia, 2026-11-10: VLC hangs on any video
+/// there, even its own test). Just Player and MX Player hand back the
+/// position like VLC (the "MX Player" interface). Saved per device, not synced.
+enum AndroidPlayer {
+  vlc('VLC'),
+  just('Just Player'),
+  mx('MX Player');
+
+  const AndroidPlayer(this.label);
+  final String label;
+
+  static AndroidPlayer fromName(String? n) => values.firstWhere((p) => p.name == n, orElse: () => vlc);
 }
 
 /// Opens a video in VLC (the app has no player of its own) and finds out
 /// where the user stopped.
 abstract class VlcLauncher {
   static VlcLauncher forPlatform() => Platform.isAndroid ? AndroidVlc() : DesktopVlc();
+
+  /// The player's name, for messages.
+  String get name => 'VLC';
 
   Future<bool> available();
 
@@ -47,6 +67,12 @@ abstract class VlcLauncher {
 class AndroidVlc extends VlcLauncher {
   static const _ch = MethodChannel('eterotv/vlc');
 
+  /// Set from Ajustes → Reproductor (this device only).
+  AndroidPlayer player = AndroidPlayer.vlc;
+
+  @override
+  String get name => player.label;
+
   /// Only a hint: if Android says no, VLC is still tried when playing and
   /// the "VLC missing" message only shows if that launch fails.
   @override
@@ -66,6 +92,7 @@ class AndroidVlc extends VlcLauncher {
         'url': url,
         'title': title,
         'positionMs': startSecs * 1000,
+        'player': player.name,
       });
       if (r == null) return null;
       final pos = (r['positionMs'] as num?)?.toInt() ?? -1;
@@ -76,7 +103,7 @@ class AndroidVlc extends VlcLauncher {
         info: (r['info'] as String?) ?? '',
       );
     } on PlatformException catch (e) {
-      if (e.code == 'no_vlc') throw VlcMissing();
+      if (e.code == 'no_vlc') throw VlcMissing(name);
       rethrow;
     }
   }

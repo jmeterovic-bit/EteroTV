@@ -23,9 +23,90 @@ class TvRegionScope extends FocusScopeNode {
   TvRegionScope({super.debugLabel});
 }
 
-/// Marks a row's secondary button («Ver todo»): up and down skip it, and
-/// right from the end of its row reaches it.
-const tvAsideLabel = 'tv-aside';
+/// A row's «Ver todo» button: up from the row reaches it (it is the row's
+/// header), and right from the end of the row. (A node type and not a
+/// debugLabel: labels are empty in release builds.)
+class TvAsideNode extends FocusNode {}
+
+class _TvRowNode extends FocusNode {
+  _TvRowNode() : super(canRequestFocus: false, skipTraversal: true);
+}
+
+class _TvShelfNode extends FocusNode {
+  _TvShelfNode() : super(canRequestFocus: false, skipTraversal: true);
+}
+
+/// A row of items (a shelf's cards, the banner's buttons): coming into it
+/// from above or below lands on its first item.
+class TvRow extends StatefulWidget {
+  const TvRow({super.key, required this.child});
+  final Widget child;
+  @override
+  State<TvRow> createState() => _TvRowState();
+}
+
+class _TvRowState extends State<TvRow> {
+  final _node = _TvRowNode();
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Focus(focusNode: _node, child: widget.child);
+}
+
+/// A titled row: its «Ver todo» ([TvAsideNode]) and its [TvRow].
+class TvShelf extends StatefulWidget {
+  const TvShelf({super.key, required this.child});
+  final Widget child;
+  @override
+  State<TvShelf> createState() => _TvShelfState();
+}
+
+class _TvShelfState extends State<TvShelf> {
+  final _node = _TvShelfNode();
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Focus(focusNode: _node, child: widget.child);
+}
+
+T? _up<T extends FocusNode>(FocusNode n) => n.ancestors.whereType<T>().firstOrNull;
+
+/// The first item of [row], scrolled back to the start.
+bool _toRowStart(_TvRowNode row, TraversalDirection direction) {
+  List<FocusNode> items() => [
+    for (final n in row.traversalDescendants)
+      if (n is! FocusScopeNode && n.context != null && n.context!.mounted) n,
+  ]..sort((a, b) => a.rect.left.compareTo(b.rect.left));
+  final first = items().firstOrNull;
+  if (first == null) return false;
+  final s = _scrollableOn(first.context!, Axis.horizontal);
+  final inRow = s != null && _up<_TvRowNode>(first) == row && s.position.pixels > s.position.minScrollExtent;
+  if (!inRow) {
+    first.requestFocus();
+    _reveal(first, direction);
+    return true;
+  }
+  // Scrolled: go back to the start, then take the first card once built.
+  s.position.jumpTo(s.position.minScrollExtent);
+  first.requestFocus();
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final f = items().firstOrNull;
+    if (f != null) {
+      f.requestFocus();
+      _reveal(f, direction);
+    }
+  });
+  WidgetsBinding.instance.scheduleFrame();
+  return true;
+}
 
 final tvActions = <Type, Action<Intent>>{
   ...WidgetsApp.defaultActions,
@@ -114,11 +195,21 @@ bool tvFocusInDirection(FocusNode current, TraversalDirection direction, {bool r
   }
 
   FocusNode? found;
+  final myRow = _up<_TvRowNode>(current);
+  // Up from a row goes to its «Ver todo», the row's header.
+  if (direction == TraversalDirection.up && myRow != null) {
+    final aside = _up<_TvShelfNode>(current)?.traversalDescendants.whereType<TvAsideNode>().firstOrNull;
+    if (aside != null && aside.context != null) {
+      aside.requestFocus();
+      _reveal(aside, direction);
+      return true;
+    }
+  }
   if (vertical) {
     final col = _column(current);
     var cands = [
       for (final n in all)
-        if (ahead(n.rect) && _overlapX(_column(n), col) && n.debugLabel != tvAsideLabel && shows(n)) n,
+        if (ahead(n.rect) && _overlapX(_column(n), col) && n is! TvAsideNode && shows(n)) n,
     ];
     // Inside a list, the next row of that list first (even if it is just
     // off screen): a search bar or a button above the list comes after.
@@ -144,9 +235,7 @@ bool tvFocusInDirection(FocusNode current, TraversalDirection direction, {bool r
     final band = cands.where((n) => _overlapY(n.rect, cur)).toList();
     // At the end of a row, right goes to its «Ver todo» (just above it).
     if (band.isEmpty && direction == TraversalDirection.right) {
-      final aside = all.where(
-        (n) => n.debugLabel == tvAsideLabel && n.rect.bottom <= cur.top + 8 && n.rect.bottom > cur.top - 80,
-      );
+      final aside = all.where((n) => n is TvAsideNode && n.rect.bottom <= cur.top + 8 && n.rect.bottom > cur.top - 80);
       if (aside.isNotEmpty) band.add(aside.first);
     }
     final pool = band.isNotEmpty ? band : cands;
@@ -164,6 +253,10 @@ bool tvFocusInDirection(FocusNode current, TraversalDirection direction, {bool r
     final last = region.focusedChild;
     if (last != null && last is! FocusScopeNode && last.context != null && _shows(last, null)) found = last;
   }
+
+  // Into another row from above or below: its first item.
+  final row = _up<_TvRowNode>(found);
+  if (vertical && row != null && row != myRow) return _toRowStart(row, direction);
 
   found.requestFocus();
   _reveal(found, direction);

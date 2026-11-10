@@ -24,7 +24,7 @@ Future<void> playWithChecks(
   final state = context.read<AppState>();
   final messenger = ScaffoldMessenger.of(context);
   if (!await state.vlc.available()) {
-    if (context.mounted) await _noVlc(context);
+    if (context.mounted) await _noVlc(context, state.vlc.name);
     return;
   }
   // Right after closing VLC the server may still count that stream: the
@@ -76,10 +76,10 @@ Future<void> playWithChecks(
   try {
     final note = await action(state);
     if (note is String) messenger.showSnackBar(SnackBar(content: Text(note)));
-  } on VlcMissing {
-    if (context.mounted) await _noVlc(context);
+  } on VlcMissing catch (e) {
+    if (context.mounted) await _noVlc(context, e.player);
   } catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text('No se pudo abrir VLC: $e')));
+    messenger.showSnackBar(SnackBar(content: Text('No se pudo abrir ${state.vlc.name}: $e')));
   } finally {
     vlcClosed = true;
     state.nearEnd.removeListener(listener);
@@ -169,13 +169,14 @@ class _NextEpisodeDialogState extends State<NextEpisodeDialog> {
   }
 }
 
-Future<void> _noVlc(BuildContext context) => showDialog<void>(
+Future<void> _noVlc(BuildContext context, String player) => showDialog<void>(
   context: context,
   builder: (c) => AlertDialog(
-    title: const Text('Falta VLC'),
+    title: Text('Falta $player'),
     content: Text(
       Platform.isAndroid
-          ? 'EteroTV usa VLC para reproducir. Instálalo desde Google Play o, en Fire TV, desde la Appstore de Amazon.'
+          ? 'Este aparato reproduce con $player. Instálalo desde Google Play o, en Fire TV, desde la Appstore de '
+                'Amazon, o elige otro en Ajustes → Reproductor.'
           : 'EteroTV usa VLC para reproducir. Instálalo desde videolan.org (versión de 64 bits) y vuelve a intentarlo.',
     ),
     actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Entendido'))],

@@ -11,6 +11,7 @@ import 'play.dart';
 import 'remote.dart';
 import 'series_screen.dart';
 import 'theme.dart';
+import 'tv_focus.dart';
 import 'widgets.dart';
 
 void openDetails(BuildContext context, CatalogItem item) => Navigator.push(
@@ -86,34 +87,36 @@ class HeroBanner extends StatelessWidget {
                   minHeight: 3,
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: wide ? 0 : 3,
-                      child: FilledButton.icon(
-                        autofocus: true,
-                        style: FilledButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.black),
-                        icon: const Icon(Icons.play_arrow),
-                        label: Text(epLabel, overflow: TextOverflow.ellipsis),
-                        onPressed: () => playWithChecks(context, (st) => st.resume(entry)),
+                TvRow(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: wide ? 0 : 3,
+                        child: FilledButton.icon(
+                          autofocus: true,
+                          style: FilledButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.black),
+                          icon: const Icon(Icons.play_arrow),
+                          label: Text(epLabel, overflow: TextOverflow.ellipsis),
+                          onPressed: () => playWithChecks(context, (st) => st.resume(entry)),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: wide ? 0 : 2,
-                      child: FilledButton.tonalIcon(
-                        icon: Icon(fav ? Icons.check : Icons.add),
-                        label: const Text('Mi lista'),
-                        onPressed: () => s.toggleFavorite(details),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: wide ? 0 : 2,
+                        child: FilledButton.tonalIcon(
+                          icon: Icon(fav ? Icons.check : Icons.add),
+                          label: const Text('Mi lista'),
+                          onPressed: () => s.toggleFavorite(details),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(
-                      tooltip: 'Ficha',
-                      icon: const Icon(Icons.info_outline),
-                      onPressed: () => openDetails(context, details),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        tooltip: 'Ficha',
+                        icon: const Icon(Icons.info_outline),
+                        onPressed: () => openDetails(context, details),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

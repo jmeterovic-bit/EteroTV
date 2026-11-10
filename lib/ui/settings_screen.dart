@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../iptv/xtream.dart';
+import '../player/vlc.dart';
 import '../state/app_state.dart';
 import 'google_sync.dart';
 import 'pin.dart';
@@ -40,6 +41,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       if (mounted) setState(() => _accountError = e.toString());
     }
+  }
+
+  Future<void> _choosePlayer(AppState s, AndroidPlayer current) async {
+    final p = await showDialog<AndroidPlayer>(
+      context: context,
+      builder: (c) => SimpleDialog(
+        title: const Text('Reproducir con'),
+        children: [
+          for (final p in AndroidPlayer.values)
+            ListTile(
+              autofocus: p == current,
+              leading: Icon(p == current ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+              title: Text(p.label),
+              onTap: () => Navigator.pop(c, p),
+            ),
+        ],
+      ),
+    );
+    if (p != null) await s.setAndroidPlayer(p);
   }
 
   @override
@@ -103,10 +123,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const ListTile(
             title: Text('Reproductor', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-          ListTile(
-            leading: Icon(_vlc == true ? Icons.check_circle : Icons.warning_amber),
-            title: Text(_vlc == null ? 'Buscando VLC…' : (_vlc! ? 'VLC encontrado' : 'VLC no está instalado')),
-          ),
+          if (s.androidPlayer case final p?)
+            ListTile(
+              leading: const Icon(Icons.play_circle_outline),
+              title: Text('Reproducir con: ${p.label}'),
+              subtitle: const Text(
+                'Solo en este aparato. VLC es el normal; Just Player o MX Player sirven donde VLC no funciona '
+                '(tienen que estar instalados). Todos devuelven hasta dónde viste.',
+              ),
+              onTap: () => _choosePlayer(s, p),
+            )
+          else
+            ListTile(
+              leading: Icon(_vlc == true ? Icons.check_circle : Icons.warning_amber),
+              title: Text(_vlc == null ? 'Buscando VLC…' : (_vlc! ? 'VLC encontrado' : 'VLC no está instalado')),
+            ),
           const Divider(),
           const ListTile(
             title: Text('Control remoto', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -194,7 +225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
-          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '0.6.3'),
+          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '0.7.0'),
         ],
       ),
     );

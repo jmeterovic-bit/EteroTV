@@ -155,6 +155,10 @@ void main() {
     final down = <String>[];
     for (var i = 0; i < 16; i++) {
       await press(tester, LogicalKeyboardKey.arrowDown, 'abajo $i');
+      if (i > 0 && i.isEven && down.last != label()) {
+        // Down from the middle of a row: the first item of the row below.
+        expect(focus().rect.left, lessThan(200), reason: 'abajo $i: primer elemento (${label()})');
+      }
       if (i.isOdd) {
         for (var j = 0; j < 7; j++) {
           await press(tester, LogicalKeyboardKey.arrowRight, 'derecha $i.$j');
@@ -164,11 +168,23 @@ void main() {
       down.add(label());
     }
     expect(down.toSet().length, greaterThan(10), reason: 'bajó fila por fila: $down');
-    for (var i = 0; i < 20; i++) {
+    // Up: from a row to its «Ver todo», then to the first item of the row
+    // above (Jose's idea, 2026-11-10).
+    final ups = <String>[];
+    for (var i = 0; i < 40 && focus().context!.findAncestorWidgetOfExactType<HeroBanner>() == null; i++) {
+      final wasCard = label() != 'Ver todo';
       await press(tester, LogicalKeyboardKey.arrowUp, 'arriba $i');
       expect(inRail(), isFalse, reason: 'arriba no salta al menú');
+      ups.add(label());
+      if (!wasCard) {
+        // Came from «Ver todo»: first item of the row above.
+        final r = focus().rect;
+        expect(r.left, lessThan(200), reason: 'primer elemento de la fila de arriba (${label()}, $r)');
+      }
     }
-    expect(focus().context!.findAncestorWidgetOfExactType<HeroBanner>(), isNotNull, reason: 'llegó arriba');
+    expect(focus().context!.findAncestorWidgetOfExactType<HeroBanner>(), isNotNull, reason: 'llegó arriba: $ups');
+    expect(label(), startsWith('Continuar'), reason: 'el primer botón del destacado');
+    expect(ups.where((l) => l == 'Ver todo').length, greaterThan(5), reason: 'pasó por los «Ver todo»: $ups');
     // At the end of a row, right reaches its «Ver todo», and down leaves it.
     // Down to the first category row (Mi lista has no «Ver todo»).
     for (var i = 0; i < 6; i++) {
