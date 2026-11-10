@@ -26,6 +26,21 @@ class AppState extends ChangeNotifier {
   static const _storage = FlutterSecureStorage();
   static const _credsKey = 'iptv_credentials';
   static const refreshEvery = Duration(hours: 24);
+  static const _playerKey = 'player';
+
+  /// Android: which player this device uses (not synced: it depends on the device).
+  AndroidPlayer? get androidPlayer {
+    final v = vlc;
+    return v is AndroidVlc ? v.player : null;
+  }
+
+  Future<void> setAndroidPlayer(AndroidPlayer p) async {
+    final v = vlc;
+    if (v is! AndroidVlc) return;
+    v.player = p;
+    await prefs.setString(_playerKey, p.name);
+    notifyListeners();
+  }
 
   Credentials? creds;
   XtreamClient? get client => creds == null ? null : XtreamClient(creds!);
@@ -57,6 +72,8 @@ class AppState extends ChangeNotifier {
       _library[e.key] = e;
     }
     await _loadLocks();
+    final v = vlc;
+    if (v is AndroidVlc) v.player = AndroidPlayer.fromName(prefs.getString(_playerKey));
     notifyListeners();
     final last = lastRefresh;
     if (creds != null && (last == null || DateTime.now().difference(last) > refreshEvery)) {
@@ -661,7 +678,7 @@ class AppState extends ChangeNotifier {
     // VLC did not report: keep what we had and say so.
     if (r == null || r.positionSecs == null) {
       final info = r == null || r.info.isEmpty ? '' : ' (${r.info})';
-      return 'VLC no avisó hasta dónde viste; el avance no se guardó.$info';
+      return '${vlc.name} no avisó hasta dónde viste; el avance no se guardó.$info';
     }
     applyResult(e, r);
     e

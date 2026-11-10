@@ -38,6 +38,7 @@ class MainActivity : FlutterActivity() {
                         call.argument<String>("url")!!,
                         call.argument<String>("title") ?: "",
                         (call.argument<Number>("positionMs") ?: 0).toLong(),
+                        call.argument<String>("player") ?: "vlc",
                         result,
                     )
                     else -> result.notImplemented()
@@ -66,7 +67,7 @@ class MainActivity : FlutterActivity() {
             packageManager.hasSystemFeature("amazon.hardware.fire_tv")
     }
 
-    private fun play(url: String, title: String, positionMs: Long, result: MethodChannel.Result) {
+    private fun play(url: String, title: String, positionMs: Long, player: String, result: MethodChannel.Result) {
         // A previous launch that never came back: close it with no data.
         pending?.success(null)
         pending = null
@@ -85,6 +86,32 @@ class MainActivity : FlutterActivity() {
         //    back. Going through VLC's start screen returns at once, empty.
         // 2. The documented "result" action. 3. Plain "open with VLC".
         val tries = mutableListOf<Pair<String, Intent>>()
+        if (player != "vlc") {
+            // Just Player and MX Player: the "MX Player" interface. They start
+            // at "position" (ms, an Int) and, with return_result, hand back
+            // "position" and "duration" (ms) when the user leaves.
+            val packages = if (player == "mx") {
+                listOf("com.mxtech.videoplayer.pro", "com.mxtech.videoplayer.ad")
+            } else {
+                listOf("com.brouken.player")
+            }
+            for (pkg in packages) {
+                tries.add(pkg to Intent(Intent.ACTION_VIEW).apply {
+                    setPackage(pkg)
+                    setDataAndTypeAndNormalize(uri, "video/*")
+                    putExtra("title", title)
+                    putExtra("return_result", true)
+                    if (positionMs > 0) putExtra("position", positionMs.toInt())
+                })
+            }
+            queue = tries
+            pending = result
+            if (!launchNext()) {
+                pending = null
+                result.error("no_vlc", "player is not installed", null)
+            }
+            return
+        }
         tries.attempt("player") {
             action = Intent.ACTION_VIEW
             component = ComponentName("org.videolan.vlc", "org.videolan.vlc.gui.video.VideoPlayerActivity")
@@ -139,7 +166,8 @@ class MainActivity : FlutterActivity() {
         // once, with nothing: then try the next way to open it, and remember.
         // (VLC can take a while to give up on a stream, so 15 s.)
         val quick = SystemClock.elapsedRealtime() - launchedAt < 15000
-        val failed = data == null && quick
+        val other = tried.lastOrNull()?.contains('.') == true // Just Player / MX Player
+        val failed = data == null && quick && !other
         if (failed && tried.lastOrNull() == "player") playerFailed = true
         // The player failed and another way worked: skip the player from now on
         // on this device (not when the stream itself fails everywhere).
@@ -151,10 +179,21 @@ class MainActivity : FlutterActivity() {
         // Read as any number: some VLC versions send Int, others Long.
         val extras = data?.extras
         fun num(key: String): Long = (extras?.get(key) as? Number)?.toLong() ?: -1L
+        var position = num("extra_position")
+        var duration = num("extra_duration")
+        if (other) {
+            duration = num("duration")
+            // Watched to the end: MX-style players say so instead of a position.
+            position = if (extras?.getString("end_by") == "playback_completion" && duration > 0) {
+                duration
+            } else {
+                num("position")
+            }
+        }
         result.success(
             mapOf(
-                "positionMs" to num("extra_position"),
-                "durationMs" to num("extra_duration"),
+                "positionMs" to position,
+                "durationMs" to duration,
                 // Only for the "VLC did not say" message: never values (the URL has the password).
                 "info" to "${tried.joinToString("→")}, código $resultCode, " +
                     (if (data == null) "sin datos" else "datos: " + (extras?.keySet()?.sorted()?.joinToString() ?: "ninguno")),

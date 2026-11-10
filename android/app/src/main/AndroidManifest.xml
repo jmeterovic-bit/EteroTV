@@ -46,6 +46,10 @@
     <queries>
         <!-- VLC, the external player -->
         <package android:name="org.videolan.vlc"/>
+        <!-- Other players for devices where VLC does not work (Ajustes → Reproductor). -->
+        <package android:name="com.brouken.player"/>
+        <package android:name="com.mxtech.videoplayer.ad"/>
+        <package android:name="com.mxtech.videoplayer.pro"/>
         <intent>
             <action android:name="org.videolan.vlc.player.result"/>
             <data android:scheme="http"/>

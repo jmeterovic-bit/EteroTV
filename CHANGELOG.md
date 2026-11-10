@@ -1,6 +1,7 @@
 # Cambios
 
-## 0.6.4
+## 0.7.0
+- Ajustes → Reproductor → «Reproducir con»: VLC (normal), Just Player o MX Player, solo en ese aparato. Para la Bravia, donde VLC se cuelga con cualquier video (también fuera de EteroTV). Just Player es gratis, está en la tienda de Google TV y también devuelve hasta dónde viste.
 - TV, filas (idea de Jose): desde una fila, arriba va a su «Ver todo»; otra vez arriba, al primer elemento de la fila de arriba. Bajar lleva al primer elemento de la fila de abajo. Al llegar arriba del todo queda en «Continuar» del destacado.
 - Arreglo: en la versión compilada (no en las pruebas), «Ver todo» no se reconocía como botón aparte de la fila, porque la marca usaba una etiqueta que solo existe en modo de desarrollo.
 
