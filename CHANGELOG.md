@@ -1,5 +1,8 @@
 # Cambios
 
+## 0.6.1
+- Arreglo: un dispositivo nuevo no recibía la cuenta IPTV, el PIN ni las carpetas protegidas si se habían guardado antes de la 0.4.0 (no tenían fecha y se tomaban como «más viejos» que nada). Ahora un dispositivo que no tiene cuenta toma la de los otros, aunque no tenga fecha.
+
 ## 0.6.0
 - La TV se conecta a Google desde el celular o el PC: en la TV, «Conectar con Google» muestra un código de 6 números; en el celular o el PC ya conectado, Ajustes → Sincronización → «Conectar una TV» la busca en tu red, escribes el código y listo. Se hace una vez por TV. La sesión viaja cifrada y solo esa TV la puede abrir.
 - Se quitó el inicio de sesión con código de google.com/device: Google no permite la carpeta oculta de Drive con ese método («Invalid device flow scope»).

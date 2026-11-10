@@ -127,6 +127,30 @@ void main() {
     expect(b.creds?.username, 'u');
   });
 
+  test('account and PIN saved before 0.4.0 (no date) still reach a new device', () async {
+    final drive = _MemoryDrive();
+    final a = await device('A');
+    // What a phone on 0.4.0-0.6.0 sent for settings saved before 0.4.0: 'at' 0.
+    final snap = a.exportSnapshot()
+      ..['creds'] = {
+        'value': {'server': 'http://x:8080', 'username': 'u', 'password': 'p'},
+        'at': 0,
+      }
+      ..['pin'] = {'value': '1234', 'at': 0}
+      ..['locked'] = {
+        'value': ['movie:x'],
+        'at': 0,
+      };
+    drive.files['eterotv-device-A.json'] = jsonEncode(snap);
+    final b = await device('B');
+    await SyncService(b, auth: _SignedIn(), remote: drive).syncNow();
+    expect(b.creds?.username, 'u');
+    expect(b.checkPin('1234'), isTrue);
+    expect(b.isProtected(adult), isTrue);
+    // And from now on, settings without a date are sent as the oldest change.
+    expect((b.exportSnapshot()['creds'] as Map)['at'], 1);
+  });
+
   test('a deletion on another device removes it here, and is not brought back', () async {
     final a = await device('A');
     await a.toggleFavorite(movie);

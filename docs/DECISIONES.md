@@ -71,3 +71,4 @@ Catálogo y «control remoto de progreso» para el servicio IPTV de Jose. Muestr
 | 2026-11-10 | v0.5.1: el inicio de sesión y el PIN usan el mismo campo que los buscadores en TV; en la Bravia de Jose la pantalla de inicio no respondía al control. |
 | 2026-11-10 | Script de instalación en TV: espera hasta 90 s a que se acepte la depuración en el televisor (antes 3 s); el tiempo está en la variable `WAIT`. Pedido por Jose (la segunda TV está en otra habitación). |
 | 2026-11-10 | v0.6.0: la TV recibe la sesión de Google desde el celular o el PC por la red local («Conectar una TV»); se quitó el device flow y el cliente OAuth de TV. |
+| 2026-11-10 | v0.6.1: ajustes compartidos sin fecha (guardados antes de 0.4.0) se envían con fecha 1 y un dispositivo vacío los toma igual; la Bravia de Jose se conectó a Google pero no recibía la cuenta IPTV del celular. |
