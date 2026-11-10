@@ -175,4 +175,29 @@ void main() {
     );
     expect(x.creds.withHttp().server, 'http://h:2052');
   });
+
+  test('guide: titles in base64, now and next', () {
+    String b(String t) => base64.encode(utf8.encode(t));
+    final epg = parseShortEpg({
+      'epg_listings': [
+        {
+          'title': b('Noticias'),
+          'description': b('Edición nocturna'),
+          'start_timestamp': '2000',
+          'stop_timestamp': '3000',
+        },
+        {'title': b('Película'), 'start_timestamp': '1000', 'stop_timestamp': '2000'},
+        {'title': 'sin fecha'},
+      ],
+    });
+    expect(epg.map((e) => e.title), ['Película', 'Noticias']);
+    expect(epg[1].description, 'Edición nocturna');
+    final (on, next) = nowAndNext(epg, DateTime.fromMillisecondsSinceEpoch(1500 * 1000));
+    expect(on?.title, 'Película');
+    expect(next?.title, 'Noticias');
+    final (on2, next2) = nowAndNext(epg, DateTime.fromMillisecondsSinceEpoch(500 * 1000));
+    expect(on2, isNull);
+    expect(next2?.title, 'Película');
+    expect(parseShortEpg([]), isEmpty);
+  });
 }

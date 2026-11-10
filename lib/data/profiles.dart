@@ -1,4 +1,9 @@
+import 'dart:convert';
+import 'dart:isolate';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 
 /// The profile everything belonged to before there were profiles (1.0.0).
 const defaultProfile = 'p0';
@@ -48,6 +53,39 @@ const avatars = <Avatar>[
   Avatar('cat', '😺', Color(0xFFFF8F00)),
   Avatar('dog', '🐶', Color(0xFF795548)),
 ];
+
+/// A profile can also use a picture of the user's own (1.1.0: Jose, for
+/// personal use). It is kept in [Profile.avatar] as `img:` + a small JPEG in
+/// base64, so it reaches the other devices with the profile.
+const photoPrefix = 'img:';
+
+bool isPhoto(String avatar) => avatar.startsWith(photoPrefix);
+
+final _photoCache = <String, MemoryImage?>{};
+
+/// The picture of a photo avatar, or null for a drawing (or a broken one).
+MemoryImage? avatarPhoto(String avatar) {
+  if (!isPhoto(avatar)) return null;
+  return _photoCache.putIfAbsent(avatar, () {
+    try {
+      return MemoryImage(base64Decode(avatar.substring(photoPrefix.length)));
+    } catch (_) {
+      return null;
+    }
+  });
+}
+
+/// Side, in pixels, of the stored picture: enough for the largest circle.
+const photoSize = 192;
+
+/// Turns a picture file into a photo avatar: cut to a square in the middle,
+/// [photoSize] pixels, JPEG (about 10 KB). Null when it is not a picture.
+Future<String?> photoAvatar(Uint8List bytes) => Isolate.run(() {
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) return null;
+  final square = img.copyResizeCropSquare(img.bakeOrientation(decoded), size: photoSize);
+  return photoPrefix + base64Encode(img.encodeJpg(square, quality: 80));
+});
 
 Avatar avatarOf(String id) => avatars.firstWhere((a) => a.id == id, orElse: () => avatars.first);
 

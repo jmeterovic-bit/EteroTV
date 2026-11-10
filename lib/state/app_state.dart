@@ -13,17 +13,54 @@ import '../data/profiles.dart';
 import '../iptv/xtream.dart';
 import '../logic/progress.dart';
 import '../logic/rematch.dart';
+import '../logic/series_news.dart';
+import '../player/own_player.dart';
 import '../player/vlc.dart';
 import '../ui/i18n.dart';
 
 class AppState extends ChangeNotifier {
-  AppState({required this.db, required this.prefs, required this.deviceId, VlcLauncher? vlc})
-    : vlc = vlc ?? VlcLauncher.forPlatform();
+  AppState({required this.db, required this.prefs, required this.deviceId, VlcLauncher? vlc, VlcLauncher? own})
+    : vlc = vlc ?? VlcLauncher.forPlatform(),
+      own = own ?? OwnPlayer();
 
   final AppDatabase db;
   final SharedPreferences prefs;
   final String deviceId;
+
+  /// The outside player: VLC, or on Android Just Player / MX Player.
   final VlcLauncher vlc;
+
+  /// EteroTV's own player (1.1.0), the default.
+  final VlcLauncher own;
+
+  static const _ownKey = 'ownPlayer';
+  static const _hwKey = 'hwDecoding';
+  static const _decodeKey = 'videoDecode';
+
+  /// This device plays with EteroTV's own player (not synced).
+  bool get useOwnPlayer => prefs.getBool(_ownKey) ?? true;
+
+  /// The player in use on this device.
+  VlcLauncher get player => useOwnPlayer ? own : vlc;
+
+  Future<void> setUseOwnPlayer(bool v) async {
+    await prefs.setBool(_ownKey, v);
+    notifyListeners();
+  }
+
+  /// Own player: how the video is decoded on this device (not synced).
+  VideoDecode get videoDecode {
+    final v = prefs.getString(_decodeKey);
+    if (v != null) return VideoDecode.fromName(v);
+    return prefs.getBool(_hwKey) == false ? VideoDecode.software : VideoDecode.auto; // 1.1.0 test build
+  }
+
+  Future<void> setVideoDecode(VideoDecode d) async {
+    await prefs.setString(_decodeKey, d.name);
+    final o = own;
+    if (o is OwnPlayer) o.decode = d;
+    notifyListeners();
+  }
 
   static const _storage = FlutterSecureStorage();
   static const _credsKey = 'iptv_credentials';
@@ -108,9 +145,11 @@ class AppState extends ChangeNotifier {
   void _applyProfile() {
     final p = profile;
     uiLang = UiLang.fromName(p.lang);
-    vlc
-      ..audioLang = TrackLang.fromName(p.audio, TrackLang.original)
-      ..subLang = TrackLang.fromName(p.subs, TrackLang.none);
+    for (final v in [vlc, own]) {
+      v
+        ..audioLang = TrackLang.fromName(p.audio, TrackLang.original)
+        ..subLang = TrackLang.fromName(p.subs, TrackLang.none);
+    }
   }
 
   Future<void> _editProfile(void Function(Profile) edit, [String? id]) async {
@@ -192,6 +231,7 @@ class AppState extends ChangeNotifier {
     if (v is! AndroidVlc) return;
     v.player = p;
     await prefs.setString(_playerKey, p.name);
+    await prefs.setBool(_ownKey, false);
     notifyListeners();
   }
 
@@ -231,13 +271,19 @@ class AppState extends ChangeNotifier {
     await _loadLocks();
     final v = vlc;
     if (v is AndroidVlc) v.player = AndroidPlayer.fromName(prefs.getString(_playerKey));
+    final o = own;
+    if (o is OwnPlayer) o.decode = videoDecode;
     _loadProfiles();
+    _loadNews();
     notifyListeners();
     final last = lastRefresh;
     if (creds != null && (last == null || DateTime.now().difference(last) > refreshEvery)) {
       unawaited(refreshCatalog());
     } else if (creds != null) {
       unawaited(_findLost());
+      // First run of 1.1.0: take note of the series now, so the next list
+      // refresh can already tell what is new.
+      if (_known.isEmpty) unawaited(checkSeriesNews());
     }
   }
 
@@ -302,6 +348,7 @@ class AppState extends ChangeNotifier {
       await prefs.setInt('lastRefresh', _now);
       await _refreshHidden();
       await _findLost();
+      unawaited(checkSeriesNews());
     } catch (e) {
       error = e.toString();
     } finally {
@@ -636,6 +683,9 @@ class AppState extends ChangeNotifier {
     'creds': {'value': creds?.toJson(), 'at': _settingAt(_credsAtKey, creds != null)},
     'pin': {'value': _pin, 'at': _settingAt(_pinAtKey, _pin != null)},
     'locked': {'value': _locked.toList()..sort(), 'at': _settingAt(_lockedAtKey, _locked.isNotEmpty)},
+    // 1.1.0: «Lo nuevo». Older versions ignore these keys.
+    'seriesKnown': _knownJson(),
+    'seriesNews': _newsJson(),
   };
 
   /// When a shared setting was last changed. Settings saved before 0.4.0
@@ -735,6 +785,7 @@ class AppState extends ChangeNotifier {
         await _refreshHidden();
         n++;
       }
+      n += await _mergeNews(data);
     } finally {
       _merging = false;
     }
@@ -769,8 +820,220 @@ class AppState extends ChangeNotifier {
       ..device = deviceId;
     await _save(e);
     notifyListeners();
-    await vlc.play(x.liveUrl(ch.id), title: ch.name);
+    final p = player;
+    if (p is OwnPlayer) p.nextEpg = () => epgFor(ch.id);
+    await p.play(x.liveUrl(ch.id), title: ch.name);
     x.close();
+  }
+
+  // ---- Lo nuevo (series with a new season or episodes) ----
+
+  static const _knownKey = 'seriesKnown';
+  static const _newsKey = 'seriesNews';
+  static const maxNewsChecks = 80;
+
+  /// What was last seen of each series someone watched (shared by all
+  /// profiles and devices, through the sync).
+  final Map<String, SeriesShape> _known = {};
+
+  /// Each profile's marks, by series id (synced).
+  final Map<String, Map<String, SeriesNews>> _news = {};
+  final Map<String, CatalogItem> _newsItems = {};
+  bool _checkingNews = false;
+
+  void _loadNews() {
+    try {
+      final k = jsonDecode(prefs.getString(_knownKey) ?? '{}') as Map<String, dynamic>;
+      _known.addAll({for (final e in k.entries) e.key: SeriesShape.fromJson(e.value)});
+      _readNews(jsonDecode(prefs.getString(_newsKey) ?? '{}') as Map<String, dynamic>, _news);
+    } catch (_) {}
+    unawaited(_loadNewsItems());
+  }
+
+  static void _readNews(Map<String, dynamic> j, Map<String, Map<String, SeriesNews>> into) {
+    for (final p in j.entries) {
+      final m = into.putIfAbsent(p.key, () => {});
+      for (final e in (p.value as Map).entries) {
+        m[e.key as String] = SeriesNews.fromJson(Map<String, dynamic>.from(e.value as Map));
+      }
+    }
+  }
+
+  Map<String, Object?> _knownJson() => {for (final e in _known.entries) e.key: e.value.toJson()};
+  Map<String, Object?> _newsJson() => {
+    for (final p in _news.entries) p.key: {for (final e in p.value.entries) e.key: e.value.toJson()},
+  };
+
+  Future<void> _saveNews() async {
+    await prefs.setString(_knownKey, jsonEncode(_knownJson()));
+    await prefs.setString(_newsKey, jsonEncode(_newsJson()));
+    _changed();
+  }
+
+  Future<void> _loadNewsItems() async {
+    for (final id in {for (final m in _news.values) ...m.keys}) {
+      if (_newsItems.containsKey(id)) continue;
+      final it = await db.item(Kind.series, id);
+      if (it != null) _newsItems[id] = it;
+    }
+    notifyListeners();
+  }
+
+  /// Series a profile watched (an episode played or marked), newest first.
+  List<String> _watchedSeries(Iterable<LibraryEntry> lib) {
+    final last = <String, int>{};
+    for (final e in lib) {
+      if (e.kind != Kind.episode || e.seriesId.isEmpty || (e.lastPlayed == 0 && !e.watched)) continue;
+      final t = e.lastPlayed > (last[e.seriesId] ?? -1) ? e.lastPlayed : last[e.seriesId]!;
+      last[e.seriesId] = t;
+    }
+    return last.keys.toList()..sort((a, b) => last[b]!.compareTo(last[a]!));
+  }
+
+  /// «Lo nuevo» of the profile in use: series from its history with a new
+  /// season or new episodes, newest find first.
+  List<(CatalogItem, NewsKind)> get whatsNew {
+    final out = [
+      for (final e in (_news[profileId] ?? const <String, SeriesNews>{}).entries)
+        if (!e.value.seen && _newsItems[e.key] != null) (e.key, e.value),
+    ]..sort((a, b) => b.$2.at.compareTo(a.$2.at));
+    return [for (final (id, n) in out) (_newsItems[id]!, n.kind)];
+  }
+
+  /// After a list refresh: asks the provider for the seasons of the series
+  /// any profile watched (the most recent [maxNewsChecks]) and compares them
+  /// with what was seen last time, on any device. [fetch] is for tests.
+  Future<void> checkSeriesNews({Future<SeriesInfo> Function(String id)? fetch}) async {
+    if (_checkingNews) return;
+    _checkingNews = true;
+    try {
+      final now = _now;
+      for (final m in _news.values) {
+        m.removeWhere((_, n) => now - n.at > SeriesNews.keepFor.inMilliseconds);
+      }
+      final watchers = <String, Set<String>>{}; // series → profiles that watched it
+      for (final p in _libs.entries) {
+        if (_profiles[p.key]?.deleted ?? false) continue;
+        for (final id in _watchedSeries(p.value.values)) {
+          watchers.putIfAbsent(id, () => {}).add(p.key);
+        }
+      }
+      final x = fetch == null ? client : null;
+      if (fetch == null && x == null) return;
+      Future<SeriesInfo> get(String id) => fetch != null ? fetch(id) : x!.seriesInfo(id);
+      final queue = watchers.keys.take(maxNewsChecks).toList();
+      Future<void> worker() async {
+        while (queue.isNotEmpty) {
+          final id = queue.removeLast();
+          try {
+            final shape = SeriesShape.of(await get(id).timeout(const Duration(seconds: 20)));
+            final before = _known[id];
+            final kind = newsBetween(before, shape);
+            if (kind != null) {
+              for (final p in watchers[id]!) {
+                final m = _news.putIfAbsent(p, () => {});
+                final old = m[id];
+                final pending = old != null && !old.seen;
+                // Keep the older "before" while the earlier news is not seen yet.
+                m[id] = SeriesNews(
+                  pending && old.kind == NewsKind.season ? NewsKind.season : kind,
+                  pending ? old.before : before!,
+                  now,
+                );
+              }
+            }
+            if (shape.lastSeason > 0) _known[id] = before == null ? shape : furthest(before, shape);
+          } catch (_) {
+            // Not answered: try again next refresh.
+          }
+        }
+      }
+
+      await Future.wait([for (var i = 0; i < 4; i++) worker()]);
+      x?.close();
+      await _saveNews();
+      await _loadNewsItems();
+    } finally {
+      _checkingNews = false;
+    }
+  }
+
+  /// Playing a new episode clears the series' mark for that profile.
+  void _seenNews(LibraryEntry e) {
+    final n = _news[e.profile]?[e.seriesId];
+    if (e.kind != Kind.episode || n == null || n.seen || !n.seenWith(e.season, e.episode)) return;
+    _news[e.profile]![e.seriesId] = SeriesNews(n.kind, n.before, _now, seen: true);
+    notifyListeners();
+    unawaited(_saveNews());
+  }
+
+  /// From another device: the furthest look at each series, and the newest
+  /// change of each mark.
+  Future<int> _mergeNews(Map<String, dynamic> data) async {
+    var n = 0;
+    for (final e in ((data['seriesKnown'] as Map?) ?? const {}).entries) {
+      final remote = SeriesShape.fromJson(e.value);
+      final local = _known[e.key];
+      final best = local == null ? remote : furthest(local, remote);
+      if (identical(best, local) || remote.lastSeason == 0) continue;
+      _known[e.key as String] = best;
+      n++;
+    }
+    final remote = <String, Map<String, SeriesNews>>{};
+    _readNews(Map<String, dynamic>.from((data['seriesNews'] as Map?) ?? const {}), remote);
+    for (final p in remote.entries) {
+      if (_profiles[p.key]?.deleted ?? false) continue;
+      final m = _news.putIfAbsent(p.key, () => {});
+      for (final e in p.value.entries) {
+        if ((m[e.key]?.at ?? -1) >= e.value.at) continue;
+        m[e.key] = e.value;
+        n++;
+      }
+    }
+    if (n > 0) {
+      await prefs.setString(_knownKey, jsonEncode(_knownJson()));
+      await prefs.setString(_newsKey, jsonEncode(_newsJson()));
+      await _loadNewsItems();
+    }
+    return n;
+  }
+
+  // ---- Guide (live channels) ----
+
+  final Map<String, (DateTime, Future<List<EpgEntry>>)> _epg = {};
+  int _epgRunning = 0;
+  final List<Completer<void>> _epgQueue = [];
+
+  /// Now and next of a channel, from the provider. Kept 10 minutes; at most 4
+  /// requests at a time (a list shows many channels at once). Empty when the
+  /// provider has no guide for it or does not answer.
+  Future<List<EpgEntry>> epgFor(String channelId) {
+    final hit = _epg[channelId];
+    if (hit != null && DateTime.now().difference(hit.$1) < const Duration(minutes: 10)) return hit.$2;
+    final f = _loadEpg(channelId);
+    _epg[channelId] = (DateTime.now(), f);
+    return f;
+  }
+
+  Future<List<EpgEntry>> _loadEpg(String channelId) async {
+    final x = client;
+    if (x == null) return [];
+    if (_epgRunning >= 4) {
+      final turn = Completer<void>();
+      _epgQueue.add(turn);
+      await turn.future;
+    }
+    _epgRunning++;
+    try {
+      return await x.shortEpg(channelId).timeout(const Duration(seconds: 15));
+    } catch (_) {
+      _epg.remove(channelId); // try again next time
+      return [];
+    } finally {
+      x.close();
+      _epgRunning--;
+      if (_epgQueue.isNotEmpty) _epgQueue.removeAt(0).complete();
+    }
   }
 
   Future<String?> playMovie(CatalogItem m) {
@@ -804,7 +1067,7 @@ class AppState extends ChangeNotifier {
   }
 
   /// Closes VLC (Windows), e.g. to start the next episode from the credits.
-  Future<void> stopPlayer() => vlc.stop();
+  Future<void> stopPlayer() => player.stop();
 
   /// The episode after [e] in its series (next season included), or null.
   Future<(CatalogItem, Episode)?> nextAfter(LibraryEntry e) async {
@@ -835,8 +1098,8 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Plays in VLC and saves where the user stopped. Returns a short note for
-  /// the user about what was saved.
+  /// Plays and saves where the user stopped. Returns a note for the user
+  /// only when the player did not say where that was.
   Future<String?> _play(LibraryEntry e, String url) async {
     if (e.kind == Kind.movie && e.durationSecs == 0) {
       // Remember the length: it helps to find the movie again after a list change.
@@ -858,8 +1121,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     _upNext = null;
+    _seenNews(e);
     var nearEndFired = false;
-    final r = await vlc.play(
+    final pl = player;
+    final r = await pl.play(
       url,
       title: e.title,
       startSecs: start,
@@ -867,7 +1132,7 @@ class AppState extends ChangeNotifier {
           ? null
           : (pos, len) {
               // Windows: credits reached while VLC is still playing.
-              if (!nearEndFired && isWatched(pos, len)) {
+              if (!nearEndFired && creditsReached(pos, len)) {
                 nearEndFired = true;
                 nearEnd.value = e;
               }
@@ -876,7 +1141,7 @@ class AppState extends ChangeNotifier {
     // VLC did not report: keep what we had and say so.
     if (r == null || r.positionSecs == null) {
       final info = r == null || r.info.isEmpty ? '' : ' (${r.info})';
-      return tr('{0} no avisó hasta dónde viste; el avance no se guardó.{1}', [vlc.name, info]);
+      return tr('{0} no avisó hasta dónde viste; el avance no se guardó.{1}', [pl.name, info]);
     }
     applyResult(e, r);
     e
@@ -885,10 +1150,9 @@ class AppState extends ChangeNotifier {
     await _save(e);
     notifyListeners();
     if (e.watched && e.kind == Kind.episode) _upNext = e;
-    if (e.watched) return tr('Marcado como visto.');
-    return e.durationSecs > 0
-        ? tr('Guardado: vas en {0} de {1}.', [formatTime(e.positionSecs), formatTime(e.durationSecs)])
-        : tr('Guardado: vas en {0}.', [formatTime(e.positionSecs)]);
+    // No message when it went well: Jose did not want to see the time
+    // after each video (2026-11-10). The list shows the progress.
+    return null;
   }
 
   // ---- Folders with PIN ----

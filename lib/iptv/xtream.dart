@@ -247,6 +247,10 @@ class XtreamClient {
   Future<SeriesInfo> seriesInfo(String seriesId) async =>
       parseSeriesInfo(await _get({'action': 'get_series_info', 'series_id': seriesId}));
 
+  /// What a channel shows now and next (the provider's guide, if it has one).
+  Future<List<EpgEntry>> shortEpg(String streamId, {int limit = 3}) async =>
+      parseShortEpg(await _get({'action': 'get_short_epg', 'stream_id': streamId, 'limit': '$limit'}));
+
   Future<MovieInfo> movieInfo(String vodId) async =>
       parseMovieInfo(await _get({'action': 'get_vod_info', 'vod_id': vodId}));
 
@@ -368,4 +372,53 @@ MovieInfo parseMovieInfo(dynamic j) {
     plot: asStr(info['plot'] ?? info['description']),
     tmdbId: asStr(info['tmdb_id']),
   );
+}
+
+/// One programme of a channel's guide.
+class EpgEntry {
+  EpgEntry({required this.title, this.description = '', required this.start, required this.end});
+  final String title;
+  final String description;
+  final DateTime start;
+  final DateTime end;
+
+  bool isOn(DateTime t) => !t.isBefore(start) && t.isBefore(end);
+}
+
+/// Xtream sends titles and descriptions in base64 and times as Unix seconds.
+List<EpgEntry> parseShortEpg(dynamic j) {
+  final list = j is Map ? j['epg_listings'] : null;
+  if (list is! List) return [];
+  String text(Object? v) {
+    final t = asStr(v);
+    try {
+      return utf8.decode(base64.decode(base64.normalize(t))).trim();
+    } catch (_) {
+      return t;
+    }
+  }
+
+  DateTime? time(Object? secs) {
+    final n = int.tryParse(asStr(secs));
+    return n == null ? null : DateTime.fromMillisecondsSinceEpoch(n * 1000);
+  }
+
+  final out = <EpgEntry>[];
+  for (final e in list) {
+    if (e is! Map) continue;
+    final start = time(e['start_timestamp']);
+    final end = time(e['stop_timestamp'] ?? e['end_timestamp']);
+    if (start == null || end == null) continue;
+    out.add(EpgEntry(title: text(e['title']), description: text(e['description']), start: start, end: end));
+  }
+  out.sort((a, b) => a.start.compareTo(b.start));
+  return out;
+}
+
+/// The programme on now and the one after it, from a channel's guide.
+(EpgEntry?, EpgEntry?) nowAndNext(List<EpgEntry> epg, DateTime t) {
+  final i = epg.indexWhere((e) => e.isOn(t));
+  if (i >= 0) return (epg[i], i + 1 < epg.length ? epg[i + 1] : null);
+  final next = epg.where((e) => e.start.isAfter(t)).firstOrNull;
+  return (null, next);
 }

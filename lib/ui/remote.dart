@@ -236,24 +236,32 @@ class _RemoteTextFieldState extends State<RemoteTextField> {
   }
 }
 
+/// True while a video plays in the app's own player: it takes the whole
+/// screen, without the TV margins (they showed as grey bars, 2026-11-10).
+final tvFullScreen = ValueNotifier<bool>(false);
+
 /// Keeps the app away from the edges that some TVs cut off (overscan).
 class TvSafeArea extends StatelessWidget {
   const TvSafeArea({super.key, required this.child});
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => ColoredBox(
-    color: const Color(0xFF141414),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
-      child: MediaQuery.removePadding(
-        context: context,
-        removeLeft: true,
-        removeRight: true,
-        removeTop: true,
-        removeBottom: true,
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+    valueListenable: tvFullScreen,
+    builder: (context, full, child) => ColoredBox(
+      color: full ? Colors.black : const Color(0xFF141414),
+      child: Padding(
+        padding: full ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
         child: child,
       ),
+    ),
+    child: MediaQuery.removePadding(
+      context: context,
+      removeLeft: true,
+      removeRight: true,
+      removeTop: true,
+      removeBottom: true,
+      child: child,
     ),
   );
 }

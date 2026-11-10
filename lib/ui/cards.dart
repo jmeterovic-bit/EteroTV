@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../data/library.dart';
 import '../iptv/xtream.dart';
 import '../logic/progress.dart';
+import '../logic/series_news.dart';
 import '../state/app_state.dart';
 import 'browse_screen.dart' show catalogItemOf;
 import 'movie_screen.dart';
@@ -337,10 +338,17 @@ Future<void> showItemMenu(BuildContext context, CatalogItem item) async {
 }
 
 /// Poster for "Mi lista" and category rows.
+/// «Lo nuevo» marks: a colour each, to tell them apart at a glance.
+const newSeasonColor = Color(0xFF7C4DFF);
+const newEpisodeColor = Color(0xFF00897B);
+
 class PosterCard extends StatelessWidget {
-  const PosterCard({super.key, required this.item, this.autofocus = false});
+  const PosterCard({super.key, required this.item, this.autofocus = false, this.news});
   final CatalogItem item;
   final bool autofocus;
+
+  /// «Lo nuevo»: a new season or new episodes, marked in the corner.
+  final NewsKind? news;
 
   @override
   Widget build(BuildContext context) {
@@ -352,6 +360,12 @@ class PosterCard extends StatelessWidget {
       image: item.icon,
       icon: item.kind == Kind.series ? Icons.video_library : Icons.movie_outlined,
       badge: e?.watched == true ? Icons.check_circle : null,
+      tag: switch (news) {
+        NewsKind.season => tr('NUEVA TEMPORADA'),
+        NewsKind.episode => tr('NUEVO CAPÍTULO'),
+        null => null,
+      },
+      tagColor: news == NewsKind.season ? newSeasonColor : newEpisodeColor,
       progress: e != null && e.positionSecs > 0 && !e.watched && e.durationSecs > 0
           ? fraction(e.positionSecs, e.durationSecs)
           : null,

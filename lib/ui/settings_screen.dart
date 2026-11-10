@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../iptv/xtream.dart';
+import '../player/own_player.dart';
 import '../player/vlc.dart';
 import '../state/app_state.dart';
 import 'google_sync.dart';
@@ -45,9 +46,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _choosePlayer(AppState s, AndroidPlayer current) async {
-    final p = await _choose(tr('Reproducir con'), AndroidPlayer.values, current, (p) => p.label);
-    if (p != null) await s.setAndroidPlayer(p);
+  /// 'own' (EteroTV), or an outside player: VLC, and on Android Just Player
+  /// and MX Player.
+  Future<void> _choosePlayer(AppState s) async {
+    final android = s.androidPlayer;
+    final values = [
+      'own',
+      ...android != null ? AndroidPlayer.values.map((p) => p.name) : ['vlc'],
+    ];
+    final current = s.useOwnPlayer ? 'own' : (android?.name ?? 'vlc');
+    final v = await _choose(
+      tr('Reproducir con'),
+      values,
+      current,
+      (v) => v == 'own' ? tr('EteroTV (propio)') : AndroidPlayer.fromName(v).label,
+    );
+    if (v == null) return;
+    if (v == 'own') {
+      await s.setUseOwnPlayer(true);
+    } else if (android != null) {
+      await s.setAndroidPlayer(AndroidPlayer.fromName(v));
+    } else {
+      await s.setUseOwnPlayer(false);
+    }
   }
 
   Future<T?> _choose<T>(String title, List<T> values, T current, String Function(T) label) => showDialog<T>(
@@ -101,6 +122,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       actions: [TextButton(autofocus: true, onPressed: () => Navigator.pop(c), child: Text(tr('Entendido')))],
     ),
   );
+
+  String _decodeLabel(VideoDecode d) => switch (d) {
+    VideoDecode.auto => tr('Con el chip (normal)'),
+    VideoDecode.direct => tr('Con el chip, directo a la pantalla (más nítido)'),
+    VideoDecode.software => tr('Sin el chip (con el procesador)'),
+  };
 
   String _trackLabel(TrackLang l) => switch (l) {
     TrackLang.original => tr('Original del video'),
@@ -183,18 +210,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             title: Text(tr('Reproductor'), style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-          if (s.androidPlayer case final p?)
+          ListTile(
+            leading: const Icon(Icons.play_circle_outline),
+            title: Text(tr('Reproducir con: {0}', [s.player.name])),
+            subtitle: Text(
+              s.androidPlayer != null
+                  ? tr(
+                      'Solo en este aparato. EteroTV es el normal; VLC, Just Player o MX Player son alternativas (tienen que estar instalados). Todos guardan hasta dónde viste.',
+                    )
+                  : tr(
+                      'Solo en este aparato. EteroTV es el normal; VLC es la alternativa (tiene que estar instalado).',
+                    ),
+            ),
+            onTap: () => _choosePlayer(s),
+          ),
+          if (s.useOwnPlayer)
             ListTile(
-              leading: const Icon(Icons.play_circle_outline),
-              title: Text(tr('Reproducir con: {0}', [p.label])),
+              leading: const Icon(Icons.memory),
+              title: Text(tr('Decodificar: {0}', [_decodeLabel(s.videoDecode)])),
               subtitle: Text(
                 tr(
-                  'Solo en este aparato. VLC es el normal; Just Player o MX Player sirven donde VLC no funciona (tienen que estar instalados). Todos devuelven hasta dónde viste.',
+                  'Si la imagen sale negra, verde, se corta o se ve menos nítida, prueba otra opción (vale para el próximo video). En «Audio y subtítulos» del reproductor se ve cuál usa.',
                 ),
               ),
-              onTap: () => _choosePlayer(s, p),
+              onTap: () async {
+                final values = [
+                  VideoDecode.auto,
+                  if (s.androidPlayer != null) VideoDecode.direct,
+                  VideoDecode.software,
+                ];
+                final d = await _choose(tr('Decodificar el video'), values, s.videoDecode, _decodeLabel);
+                if (d != null) await s.setVideoDecode(d);
+              },
             )
-          else
+          else if (s.androidPlayer == null)
             ListTile(
               leading: Icon(_vlc == true ? Icons.check_circle : Icons.warning_amber),
               title: Text(
@@ -214,7 +263,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (l != null) await s.setUiLanguage(l);
             },
           ),
-          if (s.androidPlayer case final p?)
+          if (s.androidPlayer case final p? when !s.useOwnPlayer)
             ListTile(
               leading: const Icon(Icons.subtitles_outlined),
               title: Text(tr('Audio y subtítulos en {0}', [p.label])),
@@ -332,7 +381,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
-          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '1.0.0'),
+          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '1.1.0'),
         ],
       ),
     );
