@@ -683,6 +683,9 @@ class AppState extends ChangeNotifier {
     'creds': {'value': creds?.toJson(), 'at': _settingAt(_credsAtKey, creds != null)},
     'pin': {'value': _pin, 'at': _settingAt(_pinAtKey, _pin != null)},
     'locked': {'value': _locked.toList()..sort(), 'at': _settingAt(_lockedAtKey, _locked.isNotEmpty)},
+    // 1.1.0: «Lo nuevo». Older versions ignore these keys.
+    'seriesKnown': _knownJson(),
+    'seriesNews': _newsJson(),
   };
 
   /// When a shared setting was last changed. Settings saved before 0.4.0
@@ -782,6 +785,7 @@ class AppState extends ChangeNotifier {
         await _refreshHidden();
         n++;
       }
+      n += await _mergeNews(data);
     } finally {
       _merging = false;
     }
@@ -828,9 +832,12 @@ class AppState extends ChangeNotifier {
   static const _newsKey = 'seriesNews';
   static const maxNewsChecks = 80;
 
-  /// What this device last saw of each series someone watched.
+  /// What was last seen of each series someone watched (shared by all
+  /// profiles and devices, through the sync).
   final Map<String, SeriesShape> _known = {};
-  final Map<String, SeriesNews> _news = {};
+
+  /// Each profile's marks, by series id (synced).
+  final Map<String, Map<String, SeriesNews>> _news = {};
   final Map<String, CatalogItem> _newsItems = {};
   bool _checkingNews = false;
 
@@ -838,19 +845,33 @@ class AppState extends ChangeNotifier {
     try {
       final k = jsonDecode(prefs.getString(_knownKey) ?? '{}') as Map<String, dynamic>;
       _known.addAll({for (final e in k.entries) e.key: SeriesShape.fromJson(e.value)});
-      final n = jsonDecode(prefs.getString(_newsKey) ?? '{}') as Map<String, dynamic>;
-      _news.addAll({for (final e in n.entries) e.key: SeriesNews.fromJson(e.value as Map<String, dynamic>)});
+      _readNews(jsonDecode(prefs.getString(_newsKey) ?? '{}') as Map<String, dynamic>, _news);
     } catch (_) {}
     unawaited(_loadNewsItems());
   }
 
+  static void _readNews(Map<String, dynamic> j, Map<String, Map<String, SeriesNews>> into) {
+    for (final p in j.entries) {
+      final m = into.putIfAbsent(p.key, () => {});
+      for (final e in (p.value as Map).entries) {
+        m[e.key as String] = SeriesNews.fromJson(Map<String, dynamic>.from(e.value as Map));
+      }
+    }
+  }
+
+  Map<String, Object?> _knownJson() => {for (final e in _known.entries) e.key: e.value.toJson()};
+  Map<String, Object?> _newsJson() => {
+    for (final p in _news.entries) p.key: {for (final e in p.value.entries) e.key: e.value.toJson()},
+  };
+
   Future<void> _saveNews() async {
-    await prefs.setString(_knownKey, jsonEncode({for (final e in _known.entries) e.key: e.value.toJson()}));
-    await prefs.setString(_newsKey, jsonEncode({for (final e in _news.entries) e.key: e.value.toJson()}));
+    await prefs.setString(_knownKey, jsonEncode(_knownJson()));
+    await prefs.setString(_newsKey, jsonEncode(_newsJson()));
+    _changed();
   }
 
   Future<void> _loadNewsItems() async {
-    for (final id in _news.keys) {
+    for (final id in {for (final m in _news.values) ...m.keys}) {
       if (_newsItems.containsKey(id)) continue;
       final it = await db.item(Kind.series, id);
       if (it != null) _newsItems[id] = it;
@@ -872,30 +893,35 @@ class AppState extends ChangeNotifier {
   /// «Lo nuevo» of the profile in use: series from its history with a new
   /// season or new episodes, newest find first.
   List<(CatalogItem, NewsKind)> get whatsNew {
-    final mine = _watchedSeries(_library.values).toSet();
     final out = [
-      for (final e in _news.entries)
-        if (mine.contains(e.key) && _newsItems[e.key] != null) (e.key, e.value),
+      for (final e in (_news[profileId] ?? const <String, SeriesNews>{}).entries)
+        if (!e.value.seen && _newsItems[e.key] != null) (e.key, e.value),
     ]..sort((a, b) => b.$2.at.compareTo(a.$2.at));
     return [for (final (id, n) in out) (_newsItems[id]!, n.kind)];
   }
 
-  NewsKind? newsOf(String seriesId) => _news[seriesId]?.kind;
-
   /// After a list refresh: asks the provider for the seasons of the series
   /// any profile watched (the most recent [maxNewsChecks]) and compares them
-  /// with what this device saw last time. [fetch] is for tests.
+  /// with what was seen last time, on any device. [fetch] is for tests.
   Future<void> checkSeriesNews({Future<SeriesInfo> Function(String id)? fetch}) async {
     if (_checkingNews) return;
     _checkingNews = true;
     try {
       final now = _now;
-      _news.removeWhere((_, n) => now - n.at > SeriesNews.keepFor.inMilliseconds);
-      final ids = <String>{for (final lib in _libs.values) ..._watchedSeries(lib.values)}.take(maxNewsChecks);
+      for (final m in _news.values) {
+        m.removeWhere((_, n) => now - n.at > SeriesNews.keepFor.inMilliseconds);
+      }
+      final watchers = <String, Set<String>>{}; // series → profiles that watched it
+      for (final p in _libs.entries) {
+        if (_profiles[p.key]?.deleted ?? false) continue;
+        for (final id in _watchedSeries(p.value.values)) {
+          watchers.putIfAbsent(id, () => {}).add(p.key);
+        }
+      }
       final x = fetch == null ? client : null;
-      Future<SeriesInfo> get(String id) => fetch != null ? fetch(id) : x!.seriesInfo(id);
       if (fetch == null && x == null) return;
-      final queue = ids.toList();
+      Future<SeriesInfo> get(String id) => fetch != null ? fetch(id) : x!.seriesInfo(id);
+      final queue = watchers.keys.take(maxNewsChecks).toList();
       Future<void> worker() async {
         while (queue.isNotEmpty) {
           final id = queue.removeLast();
@@ -904,15 +930,19 @@ class AppState extends ChangeNotifier {
             final before = _known[id];
             final kind = newsBetween(before, shape);
             if (kind != null) {
-              final old = _news[id];
-              // Keep the older "before" if it was already new and not seen yet.
-              _news[id] = SeriesNews(
-                old?.kind == NewsKind.season ? NewsKind.season : kind,
-                old?.before ?? before!,
-                now,
-              );
+              for (final p in watchers[id]!) {
+                final m = _news.putIfAbsent(p, () => {});
+                final old = m[id];
+                final pending = old != null && !old.seen;
+                // Keep the older "before" while the earlier news is not seen yet.
+                m[id] = SeriesNews(
+                  pending && old.kind == NewsKind.season ? NewsKind.season : kind,
+                  pending ? old.before : before!,
+                  now,
+                );
+              }
             }
-            if (shape.lastSeason > 0) _known[id] = shape;
+            if (shape.lastSeason > 0) _known[id] = before == null ? shape : furthest(before, shape);
           } catch (_) {
             // Not answered: try again next refresh.
           }
@@ -928,12 +958,44 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Playing a new episode clears the series' mark.
+  /// Playing a new episode clears the series' mark for that profile.
   void _seenNews(LibraryEntry e) {
-    final n = _news[e.seriesId];
-    if (e.kind != Kind.episode || n == null || !n.seenWith(e.season, e.episode)) return;
-    _news.remove(e.seriesId);
+    final n = _news[e.profile]?[e.seriesId];
+    if (e.kind != Kind.episode || n == null || n.seen || !n.seenWith(e.season, e.episode)) return;
+    _news[e.profile]![e.seriesId] = SeriesNews(n.kind, n.before, _now, seen: true);
+    notifyListeners();
     unawaited(_saveNews());
+  }
+
+  /// From another device: the furthest look at each series, and the newest
+  /// change of each mark.
+  Future<int> _mergeNews(Map<String, dynamic> data) async {
+    var n = 0;
+    for (final e in ((data['seriesKnown'] as Map?) ?? const {}).entries) {
+      final remote = SeriesShape.fromJson(e.value);
+      final local = _known[e.key];
+      final best = local == null ? remote : furthest(local, remote);
+      if (identical(best, local) || remote.lastSeason == 0) continue;
+      _known[e.key as String] = best;
+      n++;
+    }
+    final remote = <String, Map<String, SeriesNews>>{};
+    _readNews(Map<String, dynamic>.from((data['seriesNews'] as Map?) ?? const {}), remote);
+    for (final p in remote.entries) {
+      if (_profiles[p.key]?.deleted ?? false) continue;
+      final m = _news.putIfAbsent(p.key, () => {});
+      for (final e in p.value.entries) {
+        if ((m[e.key]?.at ?? -1) >= e.value.at) continue;
+        m[e.key] = e.value;
+        n++;
+      }
+    }
+    if (n > 0) {
+      await prefs.setString(_knownKey, jsonEncode(_knownJson()));
+      await prefs.setString(_newsKey, jsonEncode(_newsJson()));
+      await _loadNewsItems();
+    }
+    return n;
   }
 
   // ---- Guide (live channels) ----

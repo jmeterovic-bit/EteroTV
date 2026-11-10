@@ -47,12 +47,16 @@ NewsKind? newsBetween(SeriesShape? before, SeriesShape now) {
 /// A series flagged as new, and what it looked like before (to know when
 /// the user has watched the new part).
 class SeriesNews {
-  SeriesNews(this.kind, this.before, this.at);
+  SeriesNews(this.kind, this.before, this.at, {this.seen = false});
   final NewsKind kind;
   final SeriesShape before;
 
-  /// ms since epoch when it was found.
+  /// ms since epoch of the last change (found, or seen): the newest wins
+  /// when syncing.
   final int at;
+
+  /// Already watched: kept (hidden) so other devices learn it too.
+  final bool seen;
 
   /// Watching an episode past what was known before clears the mark.
   bool seenWith(int season, int episode) =>
@@ -60,10 +64,17 @@ class SeriesNews {
 
   static const keepFor = Duration(days: 30);
 
-  Map<String, Object?> toJson() => {'k': kind.name, 'b': before.toJson(), 'at': at};
+  Map<String, Object?> toJson() => {'k': kind.name, 'b': before.toJson(), 'at': at, if (seen) 'seen': true};
   static SeriesNews fromJson(Map<String, dynamic> j) => SeriesNews(
     NewsKind.values.firstWhere((k) => k.name == j['k'], orElse: () => NewsKind.episode),
     SeriesShape.fromJson(j['b']),
     ((j['at'] ?? 0) as num).toInt(),
+    seen: j['seen'] == true,
   );
+}
+
+/// The furthest of two looks at a series (devices sync what they saw).
+SeriesShape furthest(SeriesShape a, SeriesShape b) {
+  if (a.lastSeason != b.lastSeason) return a.lastSeason > b.lastSeason ? a : b;
+  return a.lastSeasonEpisodes >= b.lastSeasonEpisodes ? a : b;
 }

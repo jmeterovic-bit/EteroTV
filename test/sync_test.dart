@@ -59,6 +59,8 @@ void main() {
 
   final movie = CatalogItem(kind: Kind.movie, id: 'm1', name: 'Dune', categoryId: 'c');
   final adult = Category(Kind.movie, 'x', 'Adultos');
+  final series = CatalogItem(kind: Kind.series, id: 'f', name: 'Foundation', categoryId: 's');
+  Episode ep(int n) => Episode(id: 'e$n', season: 1, number: n, title: 'E$n', extension: 'mkv', durationSecs: 3000);
 
   Future<AppState> device(String id) async {
     // Each device gets fresh preferences and secure storage.
@@ -69,6 +71,7 @@ void main() {
     );
     await AppDatabase.createTables(db.db);
     await db.replaceCatalog(Kind.movie, [Category(Kind.movie, 'c', 'Cine'), adult], [movie]);
+    await db.replaceCatalog(Kind.series, [Category(Kind.series, 's', 'Series')], [series]);
     final s = AppState(db: db, prefs: await SharedPreferences.getInstance(), deviceId: id, vlc: _NoVlc());
     await s.init();
     return s;
@@ -99,6 +102,39 @@ void main() {
     await syncA.syncNow();
     expect(a.isFavorite(Kind.movie, 'm1'), isFalse);
   });
+
+  test(
+    '«Lo nuevo» follows the profile: one device notes, another finds the news, watching clears it everywhere',
+    () async {
+      final drive = _MemoryDrive();
+      final a = await device('A');
+      final b = await device('B');
+      final syncA = SyncService(a, auth: _SignedIn(), remote: drive);
+      final syncB = SyncService(b, auth: _SignedIn(), remote: drive);
+      await a.setEpisodeWatched(series, ep(1), true);
+      var episodes = 1;
+      Future<SeriesInfo> fetch(String id) async => SeriesInfo({1: List.generate(episodes, (i) => ep(i + 1))}, '');
+
+      await a.checkSeriesNews(fetch: fetch); // A takes note
+      await syncA.syncNow();
+      await syncB.syncNow();
+
+      episodes = 2;
+      await b.checkSeriesNews(fetch: fetch); // B already knows what A saw
+      expect(b.whatsNew.single.$1.id, 'f');
+      await syncB.syncNow();
+      await syncA.syncNow();
+      expect(a.whatsNew.single.$1.id, 'f', reason: 'the mark travels');
+
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      a.creds = Credentials(server: 'http://x:8080', username: 'u', password: 'p');
+      await a.playEpisode(series, ep(2));
+      expect(a.whatsNew, isEmpty);
+      await syncA.syncNow();
+      await syncB.syncNow();
+      expect(b.whatsNew, isEmpty, reason: 'seen on one device, gone on the other');
+    },
+  );
 
   test('older change does not overwrite a newer one', () async {
     final drive = _MemoryDrive();
