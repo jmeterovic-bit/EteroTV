@@ -14,7 +14,7 @@ import 'i18n.dart';
 /// VLC). Shows clear messages instead of failing silently.
 /// When [action] returns a String (what was saved), it shows as a message.
 ///
-/// After an episode is finished, offers the next one with a 10 s countdown
+/// After an episode is finished, offers the next one with a 60 s countdown
 /// ("Siguiente episodio"). On Windows it also appears when the credits start,
 /// over VLC.
 Future<void> playWithChecks(
@@ -103,8 +103,10 @@ Future<void> playWithChecks(
 }
 
 /// "Siguiente: T3 E4": a small card in the corner, over the video, with a
-/// 30 s circle that empties (Jose, 2026-11-10: the 10 s dialog was too big
-/// and too quick). True = play it.
+/// circle that empties in 60 s (Jose: 2026-11-10 the 10 s dialog was too big
+/// and too quick; 2026-11-14 60 s instead of 30 s, and the card half its
+/// size). It shows in the last 100 s, so the 60 s end before the video does.
+/// True = play it.
 Future<bool> showNextEpisode(BuildContext context, Episode ep) async =>
     await showDialog<bool>(
       context: context,
@@ -114,8 +116,14 @@ Future<bool> showNextEpisode(BuildContext context, Episode ep) async =>
     ) ??
     false;
 
+/// The countdown of the next-episode card.
+const nextEpisodeSeconds = 60;
+
+/// The card is drawn at this scale (2.1.0: half of what it was).
+const nextEpisodeCardScale = 0.5;
+
 class NextEpisodeDialog extends StatefulWidget {
-  const NextEpisodeDialog({super.key, required this.episode, this.seconds = 30});
+  const NextEpisodeDialog({super.key, required this.episode, this.seconds = nextEpisodeSeconds});
   final Episode episode;
   final int seconds;
 
@@ -155,66 +163,70 @@ class _NextEpisodeDialogState extends State<NextEpisodeDialog> {
         alignment: Alignment.bottomRight,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 24, 48, 120),
-          child: Material(
-            color: const Color(0xEE1E1E1E),
-            borderRadius: BorderRadius.circular(16),
-            elevation: 8,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 380),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox.square(
-                      dimension: 52,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          TweenAnimationBuilder<double>(
-                            tween: Tween(begin: _left / widget.seconds, end: (_left - 1) / widget.seconds),
-                            duration: const Duration(seconds: 1),
-                            builder: (_, v, _) => CircularProgressIndicator(
-                              value: v.clamp(0, 1),
-                              strokeWidth: 4,
-                              backgroundColor: Colors.white24,
-                            ),
-                          ),
-                          Center(child: Text('$_left', style: theme.textTheme.titleMedium)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Flexible(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(tr('Siguiente: T{0} E{1}', [ep.season, ep.number]), style: theme.textTheme.titleSmall),
-                          if (ep.title.isNotEmpty)
-                            Text(
-                              ep.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: [
-                              FilledButton(
-                                autofocus: true,
-                                onPressed: () => Navigator.pop(context, true),
-                                child: Text(tr('Ver ahora')),
+          child: Transform.scale(
+            scale: nextEpisodeCardScale,
+            alignment: Alignment.bottomRight,
+            child: Material(
+              color: const Color(0xEE1E1E1E),
+              borderRadius: BorderRadius.circular(16),
+              elevation: 8,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 380),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox.square(
+                        dimension: 52,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            TweenAnimationBuilder<double>(
+                              tween: Tween(begin: _left / widget.seconds, end: (_left - 1) / widget.seconds),
+                              duration: const Duration(seconds: 1),
+                              builder: (_, v, _) => CircularProgressIndicator(
+                                value: v.clamp(0, 1),
+                                strokeWidth: 4,
+                                backgroundColor: Colors.white24,
                               ),
-                              TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('Cancelar'))),
-                            ],
-                          ),
-                        ],
+                            ),
+                            Center(child: Text('$_left', style: theme.textTheme.titleMedium)),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 14),
+                      Flexible(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(tr('Siguiente: T{0} E{1}', [ep.season, ep.number]), style: theme.textTheme.titleSmall),
+                            if (ep.title.isNotEmpty)
+                              Text(
+                                ep.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: [
+                                FilledButton(
+                                  autofocus: true,
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: Text(tr('Ver ahora')),
+                                ),
+                                TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('Cancelar'))),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

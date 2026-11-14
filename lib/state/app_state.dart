@@ -36,6 +36,17 @@ class AppState extends ChangeNotifier {
   static const _ownKey = 'ownPlayer';
   static const _hwKey = 'hwDecoding';
   static const _decodeKey = 'videoDecode';
+  static const _subSizeKey = 'subSize';
+
+  /// Own player: subtitle size on this device (not synced).
+  SubSize get subSize => SubSize.fromName(prefs.getString(_subSizeKey));
+
+  Future<void> setSubSize(SubSize z) async {
+    await prefs.setString(_subSizeKey, z.name);
+    final o = own;
+    if (o is OwnPlayer) o.subSize = z;
+    notifyListeners();
+  }
 
   /// This device plays with EteroTV's own player (not synced).
   bool get useOwnPlayer => prefs.getBool(_ownKey) ?? true;
@@ -272,7 +283,12 @@ class AppState extends ChangeNotifier {
     final v = vlc;
     if (v is AndroidVlc) v.player = AndroidPlayer.fromName(prefs.getString(_playerKey));
     final o = own;
-    if (o is OwnPlayer) o.decode = videoDecode;
+    if (o is OwnPlayer) {
+      o
+        ..decode = videoDecode
+        ..subSize = subSize
+        ..onSubSize = setSubSize;
+    }
     _loadProfiles();
     _loadNews();
     notifyListeners();

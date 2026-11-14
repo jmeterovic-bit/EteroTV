@@ -1,5 +1,12 @@
 # Cambios
 
+## 2.1.0
+- Siguiente episodio: la cuenta regresiva dura 60 s (antes 30 s) y la tarjeta es la mitad de grande. Sigue apareciendo en los últimos 100 s, así que los 60 s terminan antes que el capítulo.
+- Si el capítulo termina con la tarjeta todavía en pantalla, la tarjeta ya no se cierra sola (antes se tomaba como «Cancelar»).
+- Tamaño de los subtítulos: Pequeña, Normal, Grande o Muy grande. En Ajustes → Reproductor o en «Audio y subtítulos» mientras ves; se guarda en cada aparato.
+- TV en vivo: si la señal se corta o el canal se queda pegado, el reproductor vuelve a conectarse solo («Reconectando…») en vez de salir a la lista. Si después de varios intentos no vuelve, lo dice en pantalla.
+- TV en vivo: guarda menos video detrás del punto actual (un canal no se puede retroceder), para no llenar la memoria de la Fire TV en sesiones largas.
+
 ## 2.0.0
 - Reproductor propio, ahora el de siempre (junta lo de 1.1.0 a 1.1.2 y estos arreglos de la Fire TV):
 - Retroceder o adelantar varias veces seguidas (o mantener ◀ ▶) ya no traba el video: se salta directo al último punto pedido, en vez de una búsqueda por cada toque.

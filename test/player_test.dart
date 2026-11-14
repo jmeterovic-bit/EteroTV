@@ -44,4 +44,28 @@ void main() {
     expect(formatClock(const Duration(seconds: 65)), '1:05');
     expect(formatClock(const Duration(hours: 1, minutes: 2, seconds: 3)), '1:02:03');
   });
+
+  test('a live channel that stops is opened again a few times, waiting longer each time', () {
+    final waits = [for (var i = 0; i < liveRetries; i++) liveRetryDelay(i)!];
+    for (var i = 1; i < waits.length; i++) {
+      expect(waits[i] >= waits[i - 1], isTrue);
+    }
+    expect(liveRetryDelay(liveRetries), isNull);
+  });
+
+  test('live channels keep little behind and let ffmpeg reconnect', () {
+    expect(mpvLiveOptions['stream-lavf-o'], contains('reconnect_streamed=1'));
+    expect(int.parse(mpvLiveOptions['demuxer-max-back-bytes']!), lessThanOrEqualTo(8 << 20));
+  });
+
+  test('subtitle sizes are read back, and grow in order', () {
+    for (final z in SubSize.values) {
+      expect(SubSize.fromName(z.name), z);
+    }
+    expect(SubSize.fromName(null), SubSize.normal);
+    expect(SubSize.normal.configuration.style.fontSize, 32);
+    for (var i = 1; i < SubSize.values.length; i++) {
+      expect(SubSize.values[i].scale > SubSize.values[i - 1].scale, isTrue);
+    }
+  });
 }
