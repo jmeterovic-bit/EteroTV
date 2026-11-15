@@ -1,5 +1,8 @@
 # Cambios
 
+## 2.1.2
+- Mi lista: una película que terminas de ver (o que marcas como vista) sale sola de «Mi lista». Queda marcada como vista, y el cambio llega a los otros aparatos del mismo perfil. Las series se quedan, porque ver un capítulo no termina la serie.
+
 ## 2.0.0
 - Reproductor propio, ahora el de siempre (junta lo de 1.1.0 a 1.1.2 y estos arreglos de la Fire TV):
 - Retroceder o adelantar varias veces seguidas (o mantener ◀ ▶) ya no traba el video: se salta directo al último punto pedido, en vez de una búsqueda por cada toque.
