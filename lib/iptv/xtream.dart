@@ -254,6 +254,44 @@ class XtreamClient {
   Future<MovieInfo> movieInfo(String vodId) async =>
       parseMovieInfo(await _get({'action': 'get_vod_info', 'vod_id': vodId}));
 
+  /// Opens a channel for a moment to see if it sends video (2.2.0). True
+  /// when bytes arrive, false when it answers with an error or nothing, null
+  /// when the server says no for the connection limit (it says nothing of
+  /// the channel then). Holds one of the account's connections for a few
+  /// seconds at most.
+  Future<bool?> probeLive(String id, {Duration wait = const Duration(seconds: 8)}) async {
+    final req = http.Request('GET', Uri.parse(liveUrl(id)));
+    try {
+      final res = await _http.send(req).timeout(wait);
+      if (res.statusCode == 509 || res.statusCode == 429) return null;
+      if (res.statusCode != 200 && res.statusCode != 206) {
+        unawaited(res.stream.listen(null).cancel());
+        return false;
+      }
+      var got = 0;
+      final done = Completer<bool>();
+      late StreamSubscription<List<int>> sub;
+      sub = res.stream.listen(
+        (b) {
+          got += b.length;
+          if (got >= 1024 && !done.isCompleted) done.complete(true);
+        },
+        onError: (_) {
+          if (!done.isCompleted) done.complete(false);
+        },
+        onDone: () {
+          if (!done.isCompleted) done.complete(got >= 1024);
+        },
+        cancelOnError: true,
+      );
+      final ok = await done.future.timeout(wait, onTimeout: () => false);
+      unawaited(sub.cancel());
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
   String liveUrl(String id) => '${creds.server}/live/${_seg(creds.username)}/${_seg(creds.password)}/$id.ts';
 
   String movieUrl(String id, String ext) =>

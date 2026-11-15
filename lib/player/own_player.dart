@@ -105,6 +105,13 @@ class OwnPlayer extends VlcLauncher {
   /// For the next live channel: its guide, shown over the video.
   Future<List<EpgEntry>> Function()? nextEpg;
 
+  /// For the next live channel: told whether it opened (2.2.0, to mark
+  /// channels that do not work).
+  void Function(bool ok)? nextHealth;
+
+  /// A video is on screen.
+  bool get isOpen => _close != null;
+
   @override
   String get name => 'EteroTV';
 
@@ -124,7 +131,9 @@ class OwnPlayer extends VlcLauncher {
     void Function(int positionSecs, int lengthSecs)? onProgress,
   }) async {
     final epg = nextEpg;
+    final health = nextHealth;
     nextEpg = null;
+    nextHealth = null;
     final nav = navigatorKey.currentState;
     if (nav == null) return null;
     final done = Completer<PlayResult?>();
@@ -144,6 +153,7 @@ class OwnPlayer extends VlcLauncher {
               onSubSize?.call(z);
             },
             epg: epg,
+            onHealth: health,
             onProgress: onProgress,
             onOpen: (c) => _close = c,
             onDone: (r) {
@@ -170,6 +180,7 @@ class OwnPlayerScreen extends StatefulWidget {
     this.subSize = SubSize.normal,
     this.onSubSize,
     this.epg,
+    this.onHealth,
     this.onProgress,
     this.onOpen,
     this.onDone,
@@ -186,6 +197,9 @@ class OwnPlayerScreen extends StatefulWidget {
 
   /// Live channels: loads the guide shown in the bar.
   final Future<List<EpgEntry>> Function()? epg;
+
+  /// Live channels: whether it opened (once: it played, or it never started).
+  final void Function(bool ok)? onHealth;
   final void Function(int positionSecs, int lengthSecs)? onProgress;
 
   /// Gets the function that closes the screen (for [OwnPlayer.stop]).
@@ -261,7 +275,17 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   DateTime _lastMovedAt = DateTime.now();
   DateTime _reconnectedAt = DateTime.now();
   Timer? _stallTimer;
+  Timer? _openTimer;
   bool _signalLost = false;
+
+  /// Whether the channel opened, told once (2.2.0).
+  bool _healthTold = false;
+  void _health(bool ok) {
+    if (_healthTold || !_channel) return;
+    _healthTold = true;
+    _openTimer?.cancel();
+    widget.onHealth?.call(ok);
+  }
 
   @override
   void initState() {
@@ -272,7 +296,10 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
       ..add(
         _player.stream.position.listen((p) {
           if (_seekTarget == null) _pos = p;
-          if (p > Duration.zero) _started = true;
+          if (p > Duration.zero && !_started) {
+            _started = true;
+            _health(true);
+          }
           if (p != _lastMoved) {
             _lastMoved = p;
             _lastMovedAt = DateTime.now();
@@ -294,7 +321,12 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
       ..add(_player.stream.duration.listen((d) => setState(() => _len = d)))
       ..add(_player.stream.playing.listen((v) => setState(() => _playing = v)))
       ..add(_player.stream.buffering.listen((v) => setState(() => _buffering = v)))
-      ..add(_player.stream.error.listen((e) => setState(() => _error = hideUrls(e))))
+      ..add(
+        _player.stream.error.listen((e) {
+          setState(() => _error = hideUrls(e));
+          if (!_started) _health(false);
+        }),
+      )
       ..add(
         _player.stream.completed.listen((v) {
           if (!v || _ended) return;
@@ -312,6 +344,10 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _showOverlay();
     _loadGuide();
     if (_channel) {
+      // A channel that shows nothing in 20 s counts as not working.
+      _openTimer = Timer(const Duration(seconds: 20), () {
+        if (!_started && !_closing) _health(false);
+      });
       _stallTimer = Timer.periodic(const Duration(seconds: 5), (_) {
         if (_closing || _reconnecting || _signalLost || !_started) return;
         if (_player.state.playing && DateTime.now().difference(_lastMovedAt) > liveStall) _reconnect();
@@ -340,6 +376,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     final wait = liveRetryDelay(_retries);
     if (wait == null) {
       setState(() => _signalLost = true);
+      _health(false);
       return;
     }
     _retries++;
@@ -364,8 +401,17 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     final g = await load();
     if (!mounted) return;
     setState(() => _guide = g);
-    // Refresh the "now" line when the programme changes.
-    _guideTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    // Refresh the "now" line and its bar; when the programme ends, ask the
+    // guide again (it holds only a few programmes).
+    var ticks = 0;
+    _guideTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (!mounted) return;
+      ticks++;
+      final (on, next) = nowAndNext(_guide, DateTime.now());
+      if ((on == null || next == null) && ticks % 4 == 0) {
+        final g = await load();
+        if (mounted) _guide = g;
+      }
       if (mounted && _overlay) setState(() {});
     });
   }
@@ -401,6 +447,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _flashTimer?.cancel();
     _guideTimer?.cancel();
     _stallTimer?.cancel();
+    _openTimer?.cancel();
     _focus.dispose();
     unawaited(_release(_player));
     leaveTvFullScreen();
@@ -878,7 +925,10 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                           now.difference(on.start).inSeconds / on.end.difference(on.start).inSeconds.clamp(1, 1 << 30),
                     ),
                   ),
-                  Text('${hm(on.start)} – ${hm(on.end)}', style: white.copyWith(color: Colors.white70)),
+                  Text(
+                    '${hm(on.start)} – ${hm(on.end)} · ${tr('quedan {0} min', [on.end.difference(now).inMinutes + 1])}',
+                    style: white.copyWith(color: Colors.white70),
+                  ),
                 ],
                 if (next != null)
                   Text(
