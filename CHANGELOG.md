@@ -1,5 +1,14 @@
 # Cambios
 
+## 2.2.0
+- Canales en vivo: bajo cada canal, lo que dan ahora con una barra de cuánto lleva y a qué hora termina, y lo que viene después. Mientras ves un canal, al mostrar la barra: el programa, su avance, el horario y cuántos minutos quedan. Solo en los canales que tienen guía del proveedor.
+- Canales que no cargan: si un canal no arranca (error, o nada en 20 s) o pierde la señal, queda en gris con «No cargó hace N min», en todos tus aparatos y por 3 horas. Los que sí cargaron llevan un punto verde.
+- Con el control remoto (o el teclado), quedarse 2 s sobre un canal lo revisa: se abre un momento, sin reproducirlo, y queda en verde o en gris. Se revisa uno a la vez y no se repite antes de 15 minutos. Si tu cuenta ya tiene todas sus conexiones en uso, no se marca nada.
+- Buscar: búsquedas guardadas. Abajo del buscador están «Filtros», «Guardar búsqueda» y tus búsquedas; OK elige una, mantener OK (o mantener apretado en el celular) permite cambiarle el nombre o borrarla. Cada perfil tiene las suyas y viajan con él a los otros aparatos.
+- Filtros: buscar en todo, canales en vivo, películas o series; canal activo, con guía ahora, nunca visto, ya visto, a medias, en «Mi lista» o favoritos, y calidad (4K, FHD, HD, SD). Para canales, también buscar en lo que dan ahora y poner primero los que muestran el avance. Sin palabras, los filtros alcanzan (por ejemplo, «En Mi lista» + Películas).
+- Viene de ejemplo «Real Madrid Vivo»: canales en vivo cuyo nombre o programa de ahora dice «Real Madrid», sin los que no cargaron, primero los que muestran el avance. Al abrirla se revisan hasta 8 canales encontrados que nadie abrió hace poco. Si la borras, no vuelve.
+- Para buscar en lo que dan ahora, EteroTV baja la guía completa del proveedor solo cuando una búsqueda la necesita (cada 4 horas como mucho) y guarda solo las próximas 10 horas. Si el proveedor no la entrega, se busca en el nombre del canal y lo dice.
+
 ## 2.1.2
 - Mi lista: una película que terminas de ver (o que marcas como vista) sale sola de «Mi lista». Queda marcada como vista, y el cambio llega a los otros aparatos del mismo perfil. Las series se quedan, porque ver un capítulo no termina la serie.
 - TV: al llegar al último elemento de una fila, la flecha derecha ya no hace nada. Antes saltaba a «Ver todo» y de ahí a la fila siguiente, y era difícil quedarse en el último. «Ver todo» se sigue alcanzando con la flecha arriba.

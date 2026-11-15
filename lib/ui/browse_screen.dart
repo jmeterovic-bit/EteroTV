@@ -486,33 +486,71 @@ class QualityTag extends StatelessWidget {
   );
 }
 
-class ChannelTile extends StatelessWidget {
+class ChannelTile extends StatefulWidget {
   const ChannelTile({super.key, required this.item, this.autofocus = false});
   final CatalogItem item;
   final bool autofocus;
 
+  /// The remote stays this long on a channel before it is checked.
+  static const probeAfter = Duration(seconds: 2);
+
+  @override
+  State<ChannelTile> createState() => _ChannelTileState();
+}
+
+class _ChannelTileState extends State<ChannelTile> {
+  Timer? _probe;
+
+  CatalogItem get item => widget.item;
+
+  @override
+  void dispose() {
+    _probe?.cancel();
+    super.dispose();
+  }
+
+  /// Remote or keyboard (not touch): staying on a channel checks it once.
+  void _focused(bool f) {
+    _probe?.cancel();
+    if (!f || FocusManager.instance.highlightMode != FocusHighlightMode.traditional) return;
+    final st = context.read<AppState>();
+    _probe = Timer(ChannelTile.probeAfter, () => st.probeChannel(item.id));
+  }
+
   @override
   Widget build(BuildContext context) {
     final fav = context.select<AppState, bool>((s) => s.isFavorite(Kind.live, item.id));
+    final status = context.select<AppState, ChannelStatus>((s) => s.channelStatus(item.id));
+    final down = status == ChannelStatus.down;
     void play() => playWithChecks(context, (s) => s.playLive(item));
     // Holding OK (TV) or a long press stars it; the star on the right too.
     return RemoteMenu(
       onSelect: play,
       onMenu: () => toggleFavoriteWithNote(context, item),
       child: ListTile(
-        autofocus: autofocus,
-        leading: SizedBox(
-          width: 56,
-          height: 40,
-          child: NetImage(item.icon, icon: Icons.live_tv, fit: BoxFit.contain),
+        autofocus: widget.autofocus,
+        onFocusChange: _focused,
+        leading: Opacity(
+          opacity: down ? 0.35 : 1,
+          child: SizedBox(
+            width: 56,
+            height: 40,
+            child: NetImage(item.icon, icon: Icons.live_tv, fit: BoxFit.contain),
+          ),
         ),
-        title: Text(item.name),
-        subtitle: EpgLine(channelId: item.id, number: item.number),
+        title: Text(item.name, style: down ? const TextStyle(color: Colors.white38) : null),
+        subtitle: down
+            ? Text(
+                _downNote(context.read<AppState>().channelCheckedAt(item.id)),
+                style: const TextStyle(color: Colors.white38),
+              )
+            : EpgLine(channelId: item.id, epgId: item.epgId, number: item.number),
         onTap: play,
         onLongPress: () => toggleFavoriteWithNote(context, item),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ChannelStatusDot(status),
             if (qualityOf(item.name) case final q?) QualityTag(q),
             IconButton(
               tooltip: fav ? tr('Quitar de favoritos') : tr('Agregar a favoritos'),
@@ -524,6 +562,41 @@ class ChannelTile extends StatelessWidget {
       ),
     );
   }
+
+  static String _downNote(DateTime? at) {
+    final mins = at == null ? 0 : DateTime.now().difference(at).inMinutes;
+    return mins < 1 ? tr('No cargó recién') : tr('No cargó hace {0} min', [mins]);
+  }
+}
+
+/// Green: it played or answered lately. Checking: a small circle.
+/// Down channels show grey instead (see [ChannelTile]).
+class ChannelStatusDot extends StatelessWidget {
+  const ChannelStatusDot(this.status, {super.key});
+  final ChannelStatus status;
+
+  @override
+  Widget build(BuildContext context) => switch (status) {
+    ChannelStatus.up => Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Tooltip(
+        message: tr('Funciona'),
+        child: const Icon(Icons.circle, size: 10, color: Color(0xFF43A047)),
+      ),
+    ),
+    ChannelStatus.checking => const Padding(
+      padding: EdgeInsets.only(right: 8),
+      child: SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+    ),
+    ChannelStatus.down => Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Tooltip(
+        message: tr('No cargó'),
+        child: const Icon(Icons.portable_wifi_off, size: 16, color: Colors.white38),
+      ),
+    ),
+    ChannelStatus.unknown => const SizedBox.shrink(),
+  };
 }
 
 class PosterTile extends StatelessWidget {
@@ -556,11 +629,13 @@ class PosterTile extends StatelessWidget {
   }
 }
 
-/// Under a channel: its number and what it shows now and next, from the
-/// provider's guide (nothing more when the provider has none).
+/// Under a channel: what it shows now with a bar of how far it went and
+/// when it ends, and what comes next, from the provider's guide (its
+/// number only when the provider has none).
 class EpgLine extends StatefulWidget {
-  const EpgLine({super.key, required this.channelId, this.number = 0});
+  const EpgLine({super.key, required this.channelId, this.epgId = '', this.number = 0});
   final String channelId;
+  final String epgId;
   final int number;
 
   @override
@@ -568,20 +643,85 @@ class EpgLine extends StatefulWidget {
 }
 
 class _EpgLineState extends State<EpgLine> {
-  late final Future<List<EpgEntry>> _epg = context.read<AppState>().epgFor(widget.channelId);
+  late Future<List<EpgEntry>> _epg = _load();
+  Timer? _tick;
+
+  Future<List<EpgEntry>> _load() => context.read<AppState>().epgFor(widget.channelId, epgId: widget.epgId);
+
+  @override
+  void initState() {
+    super.initState();
+    // The bar moves; when the programme ends, the guide is asked again.
+    _tick = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (!mounted) return;
+      final (on, _) = nowAndNext(await _epg, DateTime.now());
+      if (!mounted) return;
+      setState(() {
+        if (on == null) _epg = _load();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => FutureBuilder<List<EpgEntry>>(
     future: _epg,
     builder: (context, snap) {
-      final (on, next) = nowAndNext(snap.data ?? const [], DateTime.now());
+      final now = DateTime.now();
+      final (on, next) = nowAndNext(snap.data ?? const [], now);
       String hm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-      final lines = [
-        if (on != null) tr('Ahora: {0}', [on.title]) else if (widget.number > 0) '${widget.number}',
-        if (next != null) tr('Después, {0}: {1}', [hm(next.start), next.title]),
-      ];
-      if (lines.isEmpty) return const SizedBox.shrink();
-      return Text(lines.join('\n'), maxLines: 2, overflow: TextOverflow.ellipsis);
+      final small = Theme.of(context).textTheme.bodySmall;
+      if (on == null && next == null) {
+        return widget.number > 0 ? Text('${widget.number}') : const SizedBox.shrink();
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (on != null) ...[
+            Text(tr('Ahora: {0}', [on.title]), maxLines: 1, overflow: TextOverflow.ellipsis),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: LinearProgressIndicator(
+                        value: programmeProgress(on, now),
+                        minHeight: 4,
+                        borderRadius: BorderRadius.circular(2),
+                        backgroundColor: Colors.white12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(tr('hasta {0}', [hm(on.end)]), style: small),
+                ],
+              ),
+            ),
+          ],
+          if (next != null)
+            Text(
+              tr('Después, {0}: {1}', [hm(next.start), next.title]),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: small,
+            ),
+        ],
+      );
     },
   );
+}
+
+/// How far a programme went, from 0 to 1.
+double programmeProgress(EpgEntry e, DateTime now) {
+  final total = e.end.difference(e.start).inSeconds;
+  if (total <= 0) return 0;
+  return (now.difference(e.start).inSeconds / total).clamp(0.0, 1.0);
 }

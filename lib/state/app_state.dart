@@ -12,11 +12,16 @@ import '../data/library.dart';
 import '../data/profiles.dart';
 import '../iptv/xtream.dart';
 import '../logic/progress.dart';
+import '../iptv/xmltv.dart';
 import '../logic/rematch.dart';
+import '../logic/saved_search.dart';
 import '../logic/series_news.dart';
 import '../player/own_player.dart';
 import '../player/vlc.dart';
 import '../ui/i18n.dart';
+
+/// What is known of a live channel (2.2.0).
+enum ChannelStatus { unknown, checking, up, down }
 
 class AppState extends ChangeNotifier {
   AppState({required this.db, required this.prefs, required this.deviceId, VlcLauncher? vlc, VlcLauncher? own})
@@ -291,6 +296,8 @@ class AppState extends ChangeNotifier {
     }
     _loadProfiles();
     _loadNews();
+    _loadSaved();
+    _loadHealth();
     notifyListeners();
     final last = lastRefresh;
     if (creds != null && (last == null || DateTime.now().difference(last) > refreshEvery)) {
@@ -703,6 +710,9 @@ class AppState extends ChangeNotifier {
     // 1.1.0: «Lo nuevo». Older versions ignore these keys.
     'seriesKnown': _knownJson(),
     'seriesNews': _newsJson(),
+    // 2.2.0: saved searches (per profile) and channels that failed or played.
+    'savedSearches': _savedJson(),
+    'channelHealth': _healthJson(),
   };
 
   /// When a shared setting was last changed. Settings saved before 0.4.0
@@ -803,6 +813,8 @@ class AppState extends ChangeNotifier {
         n++;
       }
       n += await _mergeNews(data);
+      n += await _mergeSaved(data);
+      n += await _mergeHealth(data);
     } finally {
       _merging = false;
     }
@@ -838,7 +850,11 @@ class AppState extends ChangeNotifier {
     await _save(e);
     notifyListeners();
     final p = player;
-    if (p is OwnPlayer) p.nextEpg = () => epgFor(ch.id);
+    if (p is OwnPlayer) {
+      p
+        ..nextEpg = (() => epgFor(ch.id, epgId: ch.epgId))
+        ..nextHealth = ((ok) => markChannel(ch.id, ok));
+    }
     await p.play(x.liveUrl(ch.id), title: ch.name);
     x.close();
   }
@@ -1024,15 +1040,20 @@ class AppState extends ChangeNotifier {
   /// Now and next of a channel, from the provider. Kept 10 minutes; at most 4
   /// requests at a time (a list shows many channels at once). Empty when the
   /// provider has no guide for it or does not answer.
-  Future<List<EpgEntry>> epgFor(String channelId) {
+  Future<List<EpgEntry>> epgFor(String channelId, {String epgId = ''}) {
     final hit = _epg[channelId];
     if (hit != null && DateTime.now().difference(hit.$1) < const Duration(minutes: 10)) return hit.$2;
-    final f = _loadEpg(channelId);
+    final f = _loadEpg(channelId, epgId);
     _epg[channelId] = (DateTime.now(), f);
     return f;
   }
 
-  Future<List<EpgEntry>> _loadEpg(String channelId) async {
+  Future<List<EpgEntry>> _loadEpg(String channelId, String epgId) async {
+    // The full guide, when this device has a recent one, saves a request.
+    if (epgId.isNotEmpty && guideFresh) {
+      final g = await db.guideOf(epgId, _now);
+      if (g.isNotEmpty && g.first.isOn(DateTime.now())) return g;
+    }
     final x = client;
     if (x == null) return [];
     if (_epgRunning >= 4) {
@@ -1051,6 +1072,348 @@ class AppState extends ChangeNotifier {
       _epgRunning--;
       if (_epgQueue.isNotEmpty) _epgQueue.removeAt(0).complete();
     }
+  }
+
+  // ---- Full guide (2.2.0: to search what is on now) ----
+
+  static const _guideAtKey = 'guideAt';
+  static const _guideFailedKey = 'guideFailedAt';
+
+  /// A guide this old is downloaded again before searching in it. It keeps
+  /// [guideSpan] ahead, so what is on stays right in between.
+  static const guideMaxAge = Duration(hours: 4);
+  static const guideSpan = Duration(hours: 10);
+
+  bool guideLoading = false;
+
+  /// The provider did not give its full guide (some do not): the searches
+  /// look only in the channel names then.
+  bool guideFailed = false;
+  Future<bool>? _guideJob;
+
+  bool get guideFresh => _now - (prefs.getInt(_guideAtKey) ?? 0) < guideMaxAge.inMilliseconds;
+
+  /// Downloads the provider's full guide (`xmltv.php`) when this device has
+  /// none recent. Only what is on in the next hours is kept, and only for
+  /// the channels of the list. It is asked only by searches that look in
+  /// the guide, never with the list (it can be big). [fetch] is for tests.
+  Future<bool> ensureGuide({Future<List<GuideRow>> Function(int from, int to, Set<String> ids)? fetch}) {
+    if (guideFresh) return Future.value(true);
+    final failedAt = prefs.getInt(_guideFailedKey) ?? 0;
+    if (fetch == null && _now - failedAt < const Duration(hours: 1).inMilliseconds) {
+      guideFailed = true;
+      return Future.value(false);
+    }
+    return _guideJob ??= _downloadGuide(fetch).whenComplete(() => _guideJob = null);
+  }
+
+  Future<bool> _downloadGuide(Future<List<GuideRow>> Function(int, int, Set<String>)? fetch) async {
+    final c = creds;
+    if (c == null && fetch == null) return false;
+    guideLoading = true;
+    notifyListeners();
+    try {
+      final now = _now;
+      final to = now + guideSpan.inMilliseconds;
+      final ids = await db.liveEpgIds();
+      final rows = fetch != null
+          ? await fetch(now, to, ids)
+          : await downloadGuide(c!, from: now, to: to, channels: ids).timeout(const Duration(minutes: 5));
+      await db.replaceGuide(rows);
+      await prefs.setInt(_guideAtKey, now);
+      guideFailed = false;
+      return true;
+    } catch (_) {
+      await prefs.setInt(_guideFailedKey, _now);
+      guideFailed = true;
+      return false;
+    } finally {
+      guideLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ---- Channels that work (2.2.0) ----
+
+  static const _healthKey = 'channelHealth';
+
+  /// Channels that failed or played lately, by id (all profiles, synced).
+  final Map<String, ChannelHealth> _health = {};
+  final Set<String> _probing = {};
+
+  /// A channel checked this recently is not checked again.
+  static const probeAgainAfter = Duration(minutes: 15);
+
+  void _loadHealth() {
+    try {
+      final j = jsonDecode(prefs.getString(_healthKey) ?? '{}') as Map<String, dynamic>;
+      for (final e in j.entries) {
+        if (ChannelHealth.fromJson(e.value) case final h?) _health[e.key] = h;
+      }
+    } catch (_) {}
+  }
+
+  Map<String, Object> _healthJson() {
+    final now = _now;
+    return {
+      for (final e in _health.entries)
+        if (e.value.fresh(now)) e.key: e.value.toJson(),
+    };
+  }
+
+  Future<void> _saveHealth() async {
+    _health.removeWhere((_, h) => !h.fresh(_now));
+    await prefs.setString(_healthKey, jsonEncode(_healthJson()));
+    _changed();
+  }
+
+  ChannelStatus channelStatus(String id) {
+    if (_probing.contains(id)) return ChannelStatus.checking;
+    final h = _health[id];
+    if (h == null || !h.fresh(_now)) return ChannelStatus.unknown;
+    return h.ok ? ChannelStatus.up : ChannelStatus.down;
+  }
+
+  /// When the channel was last marked (for «sin señal hace 20 min»).
+  DateTime? channelCheckedAt(String id) {
+    final h = _health[id];
+    return h == null ? null : DateTime.fromMillisecondsSinceEpoch(h.at);
+  }
+
+  bool isChannelDown(String id) => channelStatus(id) == ChannelStatus.down;
+
+  /// The player says whether the channel opened (or the check did).
+  Future<void> markChannel(String id, bool ok) async {
+    _health[id] = ChannelHealth(ok, _now);
+    notifyListeners();
+    await _saveHealth();
+  }
+
+  /// Checks one channel (the one the remote stays on, or a search result).
+  /// One at a time, never while EteroTV plays, and not again for
+  /// [probeAgainAfter]. [probe] is for tests.
+  Future<void> probeChannel(String id, {Future<bool?> Function(String id)? probe}) async {
+    final h = _health[id];
+    if (h != null && _now - h.at < probeAgainAfter.inMilliseconds) return;
+    if (_probing.isNotEmpty) return;
+    final o = own;
+    if (o is OwnPlayer && o.isOpen) return;
+    final x = probe == null ? client : null;
+    if (probe == null && x == null) return;
+    _probing.add(id);
+    notifyListeners();
+    try {
+      var ok = probe != null ? await probe(id) : await x!.probeLive(id);
+      // A full account refuses any channel: that says nothing of this one.
+      if (ok == false && probe == null && await connectionWarning() != null) ok = null;
+      if (ok != null) await markChannel(id, ok);
+    } finally {
+      x?.close();
+      _probing.remove(id);
+      notifyListeners();
+    }
+  }
+
+  Future<int> _mergeHealth(Map<String, dynamic> data) async {
+    var n = 0;
+    final now = _now;
+    for (final e in ((data['channelHealth'] as Map?) ?? const {}).entries) {
+      final h = ChannelHealth.fromJson(e.value);
+      if (h == null || !h.fresh(now) || (_health[e.key]?.at ?? -1) >= h.at) continue;
+      _health[e.key as String] = h;
+      n++;
+    }
+    if (n > 0) await prefs.setString(_healthKey, jsonEncode(_healthJson()));
+    return n;
+  }
+
+  // ---- Saved searches (2.2.0) ----
+
+  static const _savedKey = 'savedSearches';
+
+  /// Each profile's saved searches, by id (synced; deleted ones stay marked).
+  final Map<String, Map<String, SavedSearch>> _saved = {};
+
+  void _loadSaved() {
+    try {
+      _readSaved(jsonDecode(prefs.getString(_savedKey) ?? '{}') as Map<String, dynamic>, _saved);
+    } catch (_) {}
+  }
+
+  static void _readSaved(Map<String, dynamic> j, Map<String, Map<String, SavedSearch>> into) {
+    for (final p in j.entries) {
+      final m = into.putIfAbsent(p.key, () => {});
+      for (final e in (p.value as Map).values) {
+        final s = SavedSearch.fromJson(Map<String, dynamic>.from(e as Map));
+        m[s.id] = s;
+      }
+    }
+  }
+
+  Map<String, Object?> _savedJson() => {
+    for (final p in _saved.entries) p.key: {for (final e in p.value.entries) e.key: e.value.toJson()},
+  };
+
+  Future<void> _storeSaved() => prefs.setString(_savedKey, jsonEncode(_savedJson()));
+
+  /// The profile's saved searches, by name. The first time a profile looks,
+  /// it gets the example «Real Madrid Vivo» (deleting it keeps it away).
+  List<SavedSearch> get savedSearches {
+    final m = _saved.putIfAbsent(profileId, () => {});
+    if (!m.containsKey(SavedSearch.exampleId)) {
+      m[SavedSearch.exampleId] = SavedSearch.example();
+      unawaited(_storeSaved());
+    }
+    return m.values.where((s) => !s.deleted).toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
+
+  String newSearchId() {
+    var t = _now;
+    final m = _saved[profileId] ?? const {};
+    while (m.containsKey('s${t.toRadixString(36)}')) {
+      t++;
+    }
+    return 's${t.toRadixString(36)}';
+  }
+
+  Future<void> saveSearch(SavedSearch s) async {
+    s
+      ..updatedAt = _now
+      ..deleted = false;
+    _saved.putIfAbsent(profileId, () => {})[s.id] = s;
+    notifyListeners();
+    await _storeSaved();
+    _changed();
+  }
+
+  Future<void> deleteSearch(String id) async {
+    final s = _saved[profileId]?[id];
+    if (s == null) return;
+    s
+      ..deleted = true
+      ..updatedAt = _now;
+    notifyListeners();
+    await _storeSaved();
+    _changed();
+  }
+
+  Future<int> _mergeSaved(Map<String, dynamic> data) async {
+    final remote = <String, Map<String, SavedSearch>>{};
+    _readSaved(Map<String, dynamic>.from((data['savedSearches'] as Map?) ?? const {}), remote);
+    remote.removeWhere((p, _) => _profiles[p]?.deleted ?? false);
+    final n = mergeSaved(_saved, remote);
+    if (n > 0) await _storeSaved();
+    return n;
+  }
+
+  /// What the library of the profile in use knows of [it], for the filters.
+  ItemState itemState(CatalogItem it) {
+    final e = entry(it.kind, it.id);
+    if (it.kind == Kind.series) {
+      final eps = episodesOf(it.id);
+      return ItemState(
+        seen: eps.any((x) => x.watched),
+        started: eps.any((x) => x.watched || x.lastPlayed > 0 || x.positionSecs > 0),
+        inProgress: isInProgress(it),
+        myList: e?.favorite ?? false,
+      );
+    }
+    final played = e != null && (e.lastPlayed > 0 || e.watched || e.positionSecs > 0);
+    return ItemState(
+      seen: it.kind == Kind.live ? (e?.lastPlayed ?? 0) > 0 : (e?.watched ?? false),
+      started: played,
+      inProgress: it.kind == Kind.movie && isInProgress(it),
+      myList: e?.favorite ?? false,
+    );
+  }
+
+  /// Channels whose programme on now is known (they show the progress bar),
+  /// from the last [runSearch].
+  final Set<String> onNowIds = {};
+
+  /// Runs a search with its filters. Channels: the words may also be in what
+  /// is on now (the full guide), and those with the progress bar may go
+  /// first. Without words, the filters pick from the library (seen, in
+  /// progress, «Mi lista») or from the catalog.
+  Future<List<CatalogItem>> runSearch(SavedSearch s, {int limit = 300}) async {
+    final now = _now;
+    final text = s.text.trim();
+    final kinds = s.channelsOnly ? [Kind.live] : (s.kind == null ? null : [s.kind!]);
+    bool wants(Kind k) => kinds == null || kinds.contains(k);
+    final found = <String, CatalogItem>{};
+    void add(Iterable<CatalogItem> l) {
+      for (final it in l) {
+        found.putIfAbsent('${it.kind.name}:${it.id}', () => it);
+      }
+    }
+
+    final useGuide = wants(Kind.live) && (s.inGuide || s.filters.contains(SearchFilter.onNow) || s.guideFirst);
+    final hasGuide = useGuide && await ensureGuide();
+    if (text.isNotEmpty) {
+      if (kinds == null) {
+        add(await db.search(text, limit: limit));
+      } else {
+        for (final k in kinds) {
+          add(await db.search(text, kind: k, limit: limit));
+        }
+      }
+      if (s.inGuide && hasGuide) add(await db.channelsByEpg(await db.guideMatching(text, now)));
+    } else if (s.filters.any(
+      (f) => const {SearchFilter.seen, SearchFilter.inProgress, SearchFilter.myList}.contains(f),
+    )) {
+      final ids = <(Kind, String)>{};
+      for (final e in _library.values) {
+        final k = e.kind == Kind.episode ? Kind.series : e.kind;
+        final id = e.kind == Kind.episode ? e.seriesId : e.id;
+        if (id.isNotEmpty && wants(k)) ids.add((k, id));
+      }
+      for (final (k, id) in ids) {
+        if (await db.item(k, id) case final it?) add([it]);
+      }
+    } else if (s.filters.contains(SearchFilter.onNow) && hasGuide) {
+      add(await db.channelsByEpg((await db.guideAt(now)).keys));
+    } else {
+      for (final k in kinds ?? const [Kind.live, Kind.movie, Kind.series]) {
+        add(await db.firstOf(k, limit));
+      }
+    }
+    // What is on now: the full guide, or each channel's short guide for the
+    // first ones (a request each, 4 at a time and kept 10 minutes).
+    final live = [
+      for (final it in found.values)
+        if (it.kind == Kind.live) it,
+    ];
+    final guideNow = hasGuide ? await db.guideAt(now, epgIds: [for (final it in live) it.epgId]) : const {};
+    onNowIds.clear();
+    final t = DateTime.now();
+    final ask = <Future<void>>[];
+    for (final it in live) {
+      if (guideNow[it.epgId] != null) {
+        onNowIds.add(it.id);
+      } else if (ask.length < 60 && (s.guideFirst || s.filters.contains(SearchFilter.onNow))) {
+        ask.add(
+          epgFor(it.id, epgId: it.epgId).then((g) {
+            if (nowAndNext(g, t).$1 != null) onNowIds.add(it.id);
+          }),
+        );
+      }
+    }
+    await Future.wait(ask);
+    var out = [
+      for (final it in found.values)
+        if (!isHiddenItem(it) &&
+            passesFilters(
+              s,
+              it,
+              state: itemState(it),
+              down: it.kind == Kind.live && isChannelDown(it.id),
+              onNow: onNowIds.contains(it.id),
+            ))
+          it,
+    ];
+    if (s.guideFirst) out = guideFirst(out, (it) => onNowIds.contains(it.id));
+    return out.take(limit).toList();
   }
 
   Future<String?> playMovie(CatalogItem m) {
