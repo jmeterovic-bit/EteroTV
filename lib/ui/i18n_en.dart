@@ -346,8 +346,8 @@ const en = <String, String>{
   'Todas': 'All',
   'Tamaño de los subtítulos': 'Subtitle size',
   'Tamaño de los subtítulos: {0}': 'Subtitle size: {0}',
-  'Solo en este aparato. También se cambia en «Audio y subtítulos» mientras ves.':
-      'Only on this device. You can also change it in “Audio and subtitles” while watching.',
+  'Solo en este aparato. También se cambia con la rueda dentada del reproductor.':
+      'Only on this device. You can also change it with the gear button in the player.',
   'Pequeña': 'Small',
   'Normal': 'Normal',
   'Grande': 'Large',

@@ -119,8 +119,9 @@ Future<bool> showNextEpisode(BuildContext context, Episode ep) async =>
 /// The countdown of the next-episode card.
 const nextEpisodeSeconds = 60;
 
-/// The card is drawn at this scale (2.1.0: half of what it was).
-const nextEpisodeCardScale = 0.5;
+/// The card is drawn at this scale (2.1.0: half of what it was; 2.1.1: 20 %
+/// bigger than that, Jose 2026-11-15).
+const nextEpisodeCardScale = 0.6;
 
 class NextEpisodeDialog extends StatefulWidget {
   const NextEpisodeDialog({super.key, required this.episode, this.seconds = nextEpisodeSeconds});
@@ -162,7 +163,9 @@ class _NextEpisodeDialogState extends State<NextEpisodeDialog> {
       child: Align(
         alignment: Alignment.bottomRight,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 48, 120),
+          // Close to the corner (2.1.1, Jose: it floated at mid height). A small
+          // margin stays for the TV's overscan.
+          padding: const EdgeInsets.all(24),
           child: Transform.scale(
             scale: nextEpisodeCardScale,
             alignment: Alignment.bottomRight,
