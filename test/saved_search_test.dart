@@ -311,6 +311,23 @@ void main() {
       expect(s.channelStatus('3'), ChannelStatus.unknown);
     });
 
+    test('2.2.1: one miss is not enough, and no check right after watching', () async {
+      AppState.probeRetryAfter = Duration.zero;
+      var answers = [false, true];
+      Future<bool?> probe(String id) async => answers.removeAt(0);
+      await s.probeChannel('1', probe: probe);
+      expect(s.channelStatus('1'), ChannelStatus.up, reason: 'the second try worked');
+      answers = [false, false];
+      await s.probeChannel('3', probe: probe);
+      expect(s.channelStatus('3'), ChannelStatus.down);
+
+      s.creds = Credentials(server: 'http://x:8080', username: 'u', password: 'p');
+      await s.playLive(news);
+      var asked = false;
+      await s.probeChannel('2', probe: (_) async => asked = true);
+      expect(asked, isFalse, reason: 'the server may still count the channel just closed');
+    });
+
     test('the short guide comes from the full one when there is one', () async {
       await guide();
       final g = await s.epgFor('1', epgId: 'dazn.es');

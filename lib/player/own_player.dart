@@ -323,8 +323,9 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
       ..add(_player.stream.buffering.listen((v) => setState(() => _buffering = v)))
       ..add(
         _player.stream.error.listen((e) {
+          // Not a failure yet: a track the chip refuses («Could not open
+          // codec») can come before the video starts anyway (2.2.1).
           setState(() => _error = hideUrls(e));
-          if (!_started) _health(false);
         }),
       )
       ..add(
@@ -421,6 +422,8 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   /// Leaves the player (Back, Esc, end of the video, or the next episode).
   void close() {
     if (_closing || !mounted) return;
+    // Left before it started, with an error on screen: it did not work.
+    if (!_started && _error != null) _health(false);
     _closing = true;
     _seekTarget = null;
     // The next-episode card may be over the player: take out the player's

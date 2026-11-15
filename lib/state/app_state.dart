@@ -856,6 +856,7 @@ class AppState extends ChangeNotifier {
         ..nextHealth = ((ok) => markChannel(ch.id, ok));
     }
     await p.play(x.liveUrl(ch.id), title: ch.name);
+    _playerClosedAt = _now;
     x.close();
   }
 
@@ -1144,6 +1145,15 @@ class AppState extends ChangeNotifier {
   /// A channel checked this recently is not checked again.
   static const probeAgainAfter = Duration(minutes: 15);
 
+  /// Right after a channel closes the server still counts that connection
+  /// and may refuse the next one: no check for a while (2.2.1, Jose: a
+  /// channel just watched went grey on going back).
+  static const probeQuietAfterPlay = Duration(seconds: 90);
+  int _playerClosedAt = 0;
+
+  @visibleForTesting
+  static Duration probeRetryAfter = const Duration(seconds: 3);
+
   void _loadHealth() {
     try {
       final j = jsonDecode(prefs.getString(_healthKey) ?? '{}') as Map<String, dynamic>;
@@ -1196,6 +1206,7 @@ class AppState extends ChangeNotifier {
     final h = _health[id];
     if (h != null && _now - h.at < probeAgainAfter.inMilliseconds) return;
     if (_probing.isNotEmpty) return;
+    if (_now - _playerClosedAt < probeQuietAfterPlay.inMilliseconds) return;
     final o = own;
     if (o is OwnPlayer && o.isOpen) return;
     final x = probe == null ? client : null;
@@ -1203,7 +1214,13 @@ class AppState extends ChangeNotifier {
     _probing.add(id);
     notifyListeners();
     try {
-      var ok = probe != null ? await probe(id) : await x!.probeLive(id);
+      Future<bool?> once() => probe != null ? probe(id) : x!.probeLive(id);
+      var ok = await once();
+      // One miss can be the server being slow: down only if it misses twice.
+      if (ok == false) {
+        await Future<void>.delayed(probeRetryAfter);
+        ok = await once();
+      }
       // A full account refuses any channel: that says nothing of this one.
       if (ok == false && probe == null && await connectionWarning() != null) ok = null;
       if (ok != null) await markChannel(id, ok);

@@ -1,5 +1,8 @@
 # Cambios
 
+## 2.2.1
+- Canales: un canal que funciona ya no queda en gris al volver del reproductor. Dos causas: un aviso del video antes de empezar (como «Could not open codec», que no impide verlo) contaba como falla, y la revisión del canal enfocado corría justo al salir, cuando el servidor todavía cuenta la conexión que se cerró. Ahora solo cuenta como falla si el canal no muestra nada en 20 s, pierde la señal, o sales antes de que empiece con un error en pantalla. La revisión espera 90 s después de ver un canal, y lo marca en gris solo si falla dos veces seguidas.
+
 ## 2.2.0
 - Canales en vivo: bajo cada canal, lo que dan ahora con una barra de cuánto lleva y a qué hora termina, y lo que viene después. Mientras ves un canal, al mostrar la barra: el programa, su avance, el horario y cuántos minutos quedan. Solo en los canales que tienen guía del proveedor.
 - Canales que no cargan: si un canal no arranca (error, o nada en 20 s) o pierde la señal, queda en gris con «No cargó hace N min», en todos tus aparatos y por 3 horas. Los que sí cargaron llevan un punto verde.
