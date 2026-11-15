@@ -347,8 +347,8 @@ const fr = <String, String>{
   'Todas': 'Toutes',
   'Tamaño de los subtítulos': 'Taille des sous-titres',
   'Tamaño de los subtítulos: {0}': 'Taille des sous-titres : {0}',
-  'Solo en este aparato. También se cambia en «Audio y subtítulos» mientras ves.':
-      'Sur cet appareil seulement. Se change aussi dans « Audio et sous-titres » pendant la lecture.',
+  'Solo en este aparato. También se cambia con la rueda dentada del reproductor.':
+      'Sur cet appareil seulement. Se change aussi avec la roue dentée du lecteur.',
   'Pequeña': 'Petite',
   'Normal': 'Normale',
   'Grande': 'Grande',

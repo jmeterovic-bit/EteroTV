@@ -1,5 +1,9 @@
 # Cambios
 
+## 2.1.1
+- Reproductor: el tamaño de los subtítulos tiene su propio botón, una rueda dentada a la derecha de «Audio y subtítulos». Ese menú ya no lo incluye, para que no quede tan cargado.
+- Siguiente episodio: la tarjeta queda más pegada a la esquina de abajo a la derecha (antes flotaba a media altura) y es un 20 % más grande que en 2.1.0.
+
 ## 2.1.0
 - Siguiente episodio: la cuenta regresiva dura 60 s (antes 30 s) y la tarjeta es la mitad de grande. Sigue apareciendo en los últimos 100 s, así que los 60 s terminan antes que el capítulo.
 - Si el capítulo termina con la tarjeta todavía en pantalla, la tarjeta ya no se cierra sola (antes se tomaba como «Cancelar»).

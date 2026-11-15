@@ -247,7 +247,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ListTile(
               leading: const Icon(Icons.closed_caption),
               title: Text(tr('Tamaño de los subtítulos: {0}', [subSizeLabel(s.subSize)])),
-              subtitle: Text(tr('Solo en este aparato. También se cambia en «Audio y subtítulos» mientras ves.')),
+              subtitle: Text(tr('Solo en este aparato. También se cambia con la rueda dentada del reproductor.')),
               onTap: () async {
                 final z = await _choose(tr('Tamaño de los subtítulos'), SubSize.values, s.subSize, subSizeLabel);
                 if (z != null) await s.setSubSize(z);

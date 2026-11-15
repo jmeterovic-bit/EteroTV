@@ -503,6 +503,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _Action(_playing ? Icons.pause : Icons.play_arrow, _playing ? tr('Pausa') : tr('Reproducir'), _playPause, size: 40),
     if (!_live) _Action(Icons.forward_10, tr('Adelante 10 s'), () => _seekBy(_step)),
     _Action(Icons.subtitles, tr('Audio y subtítulos'), _chooseTracks),
+    _Action(Icons.settings, tr('Tamaño de los subtítulos'), _chooseSubSize),
     if (!touch) _Action(Icons.fullscreen, tr('Pantalla completa'), _toggleFullscreen),
   ];
 
@@ -674,7 +675,29 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                 Navigator.pop(c);
               },
             ),
-          _Header(tr('Tamaño de los subtítulos')),
+          if (info.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: Text(info, style: Theme.of(c).textTheme.bodySmall),
+            ),
+        ],
+      ),
+    );
+    if (mounted) {
+      _focus.requestFocus();
+      _showOverlay();
+    }
+  }
+
+  /// Subtitle size, on its own button (Jose, 2026-11-15: in «Audio y
+  /// subtítulos» that menu got too crowded).
+  Future<void> _chooseSubSize() async {
+    _hideTimer?.cancel();
+    await showDialog<void>(
+      context: context,
+      builder: (c) => SimpleDialog(
+        title: Text(tr('Tamaño de los subtítulos')),
+        children: [
           for (final z in SubSize.values)
             _TrackTile(
               selected: z == _subSize,
@@ -684,11 +707,6 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                 widget.onSubSize?.call(z);
                 Navigator.pop(c);
               },
-            ),
-          if (info.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: Text(info, style: Theme.of(c).textTheme.bodySmall),
             ),
         ],
       ),
