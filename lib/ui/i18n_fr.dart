@@ -345,4 +345,15 @@ const fr = <String, String>{
   'NUEVA TEMPORADA': 'NOUVELLE SAISON',
   'NUEVO CAPÍTULO': 'NOUVEL ÉPISODE',
   'Todas': 'Toutes',
+  'Tamaño de los subtítulos': 'Taille des sous-titres',
+  'Tamaño de los subtítulos: {0}': 'Taille des sous-titres : {0}',
+  'Solo en este aparato. También se cambia con la rueda dentada del reproductor.':
+      'Sur cet appareil seulement. Se change aussi avec la roue dentée du lecteur.',
+  'Pequeña': 'Petite',
+  'Normal': 'Normale',
+  'Grande': 'Grande',
+  'Muy grande': 'Très grande',
+  'Reconectando…': 'Reconnexion…',
+  'Se perdió la señal del canal. Atrás para volver a la lista.':
+      'Le signal de la chaîne est perdu. Retour pour revenir à la liste.',
 };

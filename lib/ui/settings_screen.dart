@@ -242,6 +242,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final d = await _choose(tr('Decodificar el video'), values, s.videoDecode, _decodeLabel);
                 if (d != null) await s.setVideoDecode(d);
               },
+            ),
+          if (s.useOwnPlayer)
+            ListTile(
+              leading: const Icon(Icons.closed_caption),
+              title: Text(tr('Tamaño de los subtítulos: {0}', [subSizeLabel(s.subSize)])),
+              subtitle: Text(tr('Solo en este aparato. También se cambia con la rueda dentada del reproductor.')),
+              onTap: () async {
+                final z = await _choose(tr('Tamaño de los subtítulos'), SubSize.values, s.subSize, subSizeLabel);
+                if (z != null) await s.setSubSize(z);
+              },
             )
           else if (s.androidPlayer == null)
             ListTile(

@@ -31,6 +31,44 @@ Map<String, String> mpvTrackOptions(TrackLang audio, TrackLang subs) => {
   'subs-fallback-forced': 'no',
 };
 
+/// How big the subtitles are (Ajustes → Reproductor, or «Audio y
+/// subtítulos» while watching; per device, since each screen is seen from
+/// its own distance).
+enum SubSize {
+  small(0.75),
+  normal(1.0),
+  large(1.3),
+  huge(1.6);
+
+  const SubSize(this.scale);
+  final double scale;
+
+  static SubSize fromName(String? n) => values.firstWhere((d) => d.name == n, orElse: () => normal);
+
+  /// media_kit draws the subtitles itself: its normal style, scaled.
+  SubtitleViewConfiguration get configuration => SubtitleViewConfiguration(
+    style: TextStyle(
+      height: 1.4,
+      fontSize: 32 * scale,
+      color: const Color(0xffffffff),
+      backgroundColor: const Color(0xaa000000),
+    ),
+  );
+}
+
+/// Live channels: what to do when the stream stops. The server sometimes
+/// drops the connection (seen on the Fire TV after ~40 min, 2026-11-13):
+/// mpv then reached the end of the stream and the player closed, back to
+/// the list. Now it opens the channel again, waiting a bit longer each time.
+/// Null: give up (the signal is gone).
+Duration? liveRetryDelay(int attempt) =>
+    attempt >= liveRetries ? null : Duration(seconds: [1, 2, 3, 5, 8, 10][attempt]);
+const liveRetries = 6;
+
+/// A live channel whose time has not moved for this long while not paused
+/// is stuck: it is opened again.
+const liveStall = Duration(seconds: 20);
+
 /// How the own player decodes the video (Ajustes → Reproductor, per device).
 enum VideoDecode {
   /// The chip decodes and mpv draws the picture (it can fall back to
@@ -59,6 +97,10 @@ enum VideoDecode {
 /// It runs inside the app, so it knows the position and the tracks.
 class OwnPlayer extends VlcLauncher {
   VideoDecode decode = VideoDecode.auto;
+  SubSize subSize = SubSize.normal;
+
+  /// The size chosen while watching, to keep it for the next video.
+  void Function(SubSize)? onSubSize;
 
   /// For the next live channel: its guide, shown over the video.
   Future<List<EpgEntry>> Function()? nextEpg;
@@ -96,6 +138,11 @@ class OwnPlayer extends VlcLauncher {
             audio: audioLang,
             subs: subLang,
             decode: decode,
+            subSize: subSize,
+            onSubSize: (z) {
+              subSize = z;
+              onSubSize?.call(z);
+            },
             epg: epg,
             onProgress: onProgress,
             onOpen: (c) => _close = c,
@@ -120,6 +167,8 @@ class OwnPlayerScreen extends StatefulWidget {
     this.audio = TrackLang.original,
     this.subs = TrackLang.none,
     this.decode = VideoDecode.auto,
+    this.subSize = SubSize.normal,
+    this.onSubSize,
     this.epg,
     this.onProgress,
     this.onOpen,
@@ -132,6 +181,8 @@ class OwnPlayerScreen extends StatefulWidget {
   final TrackLang audio;
   final TrackLang subs;
   final VideoDecode decode;
+  final SubSize subSize;
+  final void Function(SubSize)? onSubSize;
 
   /// Live channels: loads the guide shown in the bar.
   final Future<List<EpgEntry>> Function()? epg;
@@ -196,6 +247,22 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
 
   bool get _live => widget.epg != null || _len == Duration.zero;
 
+  /// A live channel (not a video still loading its length).
+  bool get _channel => widget.epg != null;
+
+  late SubSize _subSize = widget.subSize;
+
+  /// Live channels: the stream is being opened again.
+  bool _reconnecting = false;
+  int _retries = 0;
+
+  /// Where the channel's time was when it last moved, and when.
+  Duration _lastMoved = Duration.zero;
+  DateTime _lastMovedAt = DateTime.now();
+  DateTime _reconnectedAt = DateTime.now();
+  Timer? _stallTimer;
+  bool _signalLost = false;
+
   @override
   void initState() {
     super.initState();
@@ -206,6 +273,16 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
         _player.stream.position.listen((p) {
           if (_seekTarget == null) _pos = p;
           if (p > Duration.zero) _started = true;
+          if (p != _lastMoved) {
+            _lastMoved = p;
+            _lastMovedAt = DateTime.now();
+            // Playing again for a minute: the next drop starts counting anew.
+            if (_retries > 0 &&
+                !_reconnecting &&
+                _lastMovedAt.difference(_reconnectedAt) > const Duration(minutes: 1)) {
+              _retries = 0;
+            }
+          }
           final s = p.inSeconds;
           if (s != _lastReport && _len > Duration.zero) {
             _lastReport = s;
@@ -220,7 +297,12 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
       ..add(_player.stream.error.listen((e) => setState(() => _error = hideUrls(e))))
       ..add(
         _player.stream.completed.listen((v) {
-          if (v && !_ended) {
+          if (!v || _ended) return;
+          // A channel that played and stopped: open it again. One that never
+          // started closes as before (its error showed).
+          if (_channel && _started) {
+            _reconnect();
+          } else {
             _ended = true;
             close();
           }
@@ -229,6 +311,12 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _start();
     _showOverlay();
     _loadGuide();
+    if (_channel) {
+      _stallTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+        if (_closing || _reconnecting || _signalLost || !_started) return;
+        if (_player.state.playing && DateTime.now().difference(_lastMovedAt) > liveStall) _reconnect();
+      });
+    }
     if (Platform.isAndroid) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
@@ -237,11 +325,37 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   Future<void> _start() async {
     final native = _player.platform;
     if (native is NativePlayer) {
-      for (final o in mpvTrackOptions(widget.audio, widget.subs).entries) {
+      final options = {...mpvTrackOptions(widget.audio, widget.subs), if (_channel) ...mpvLiveOptions};
+      for (final o in options.entries) {
         await native.setProperty(o.key, o.value);
       }
     }
     await _player.open(Media(widget.url, start: Duration(seconds: widget.startSecs)));
+  }
+
+  /// Live channel: the stream stopped (or got stuck). Opens it again, with
+  /// "Reconectando…" over the video, instead of going back to the list.
+  Future<void> _reconnect() async {
+    if (_closing || _reconnecting || _signalLost) return;
+    final wait = liveRetryDelay(_retries);
+    if (wait == null) {
+      setState(() => _signalLost = true);
+      return;
+    }
+    _retries++;
+    setState(() => _reconnecting = true);
+    await Future<void>.delayed(wait);
+    if (_closing || !mounted) return;
+    try {
+      _error = null;
+      _lastMovedAt = DateTime.now();
+      await _player.open(Media(widget.url));
+    } catch (_) {
+      // The next check (end of stream or stuck) tries again.
+    }
+    if (!mounted) return;
+    _lastMovedAt = _reconnectedAt = DateTime.now();
+    setState(() => _reconnecting = false);
   }
 
   Future<void> _loadGuide() async {
@@ -263,7 +377,15 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     if (_closing || !mounted) return;
     _closing = true;
     _seekTarget = null;
-    Navigator.of(context).pop();
+    // The next-episode card may be over the player: take out the player's
+    // own screen, not whatever is on top (a plain pop closed the card).
+    final route = ModalRoute.of(context);
+    final nav = Navigator.of(context);
+    if (route != null && !route.isCurrent) {
+      nav.removeRoute(route);
+    } else {
+      nav.pop();
+    }
   }
 
   @override
@@ -278,6 +400,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _hideTimer?.cancel();
     _flashTimer?.cancel();
     _guideTimer?.cancel();
+    _stallTimer?.cancel();
     _focus.dispose();
     unawaited(_release(_player));
     leaveTvFullScreen();
@@ -380,6 +503,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _Action(_playing ? Icons.pause : Icons.play_arrow, _playing ? tr('Pausa') : tr('Reproducir'), _playPause, size: 40),
     if (!_live) _Action(Icons.forward_10, tr('Adelante 10 s'), () => _seekBy(_step)),
     _Action(Icons.subtitles, tr('Audio y subtítulos'), _chooseTracks),
+    _Action(Icons.settings, tr('Tamaño de los subtítulos'), _chooseSubSize),
     if (!touch) _Action(Icons.fullscreen, tr('Pantalla completa'), _toggleFullscreen),
   ];
 
@@ -565,6 +689,34 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     }
   }
 
+  /// Subtitle size, on its own button (Jose, 2026-11-15: in «Audio y
+  /// subtítulos» that menu got too crowded).
+  Future<void> _chooseSubSize() async {
+    _hideTimer?.cancel();
+    await showDialog<void>(
+      context: context,
+      builder: (c) => SimpleDialog(
+        title: Text(tr('Tamaño de los subtítulos')),
+        children: [
+          for (final z in SubSize.values)
+            _TrackTile(
+              selected: z == _subSize,
+              label: subSizeLabel(z),
+              onTap: () {
+                setState(() => _subSize = z);
+                widget.onSubSize?.call(z);
+                Navigator.pop(c);
+              },
+            ),
+        ],
+      ),
+    );
+    if (mounted) {
+      _focus.requestFocus();
+      _showOverlay();
+    }
+  }
+
   static String _langName(String code) => switch (code.toLowerCase()) {
     'es' || 'spa' => tr('Español'),
     'en' || 'eng' => tr('Inglés'),
@@ -577,7 +729,11 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     final touch = Platform.isAndroid || Platform.isIOS;
     // A refused track (seen on the Bravia: "Could not open codec") does not
     // stop a video that plays: only an error before it starts is shown.
-    final error = _started ? null : _error;
+    final error = _signalLost
+        ? tr('Se perdió la señal del canal. Atrás para volver a la lista.')
+        : _started || _reconnecting
+        ? null
+        : _error;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Focus(
@@ -595,7 +751,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Video(controller: _video, controls: NoVideoControls),
+              Video(controller: _video, controls: NoVideoControls, subtitleViewConfiguration: _subSize.configuration),
               // Phone: tap shows the bar, double tap on a side jumps 10 s
               // (like VLC). Windows: click pauses, double click is full screen.
               Row(
@@ -617,7 +773,12 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                     ),
                 ],
               ),
-              if (_buffering && error == null) const Center(child: CircularProgressIndicator()),
+              if ((_buffering || _reconnecting) && error == null) const Center(child: CircularProgressIndicator()),
+              if (_reconnecting && !_signalLost)
+                Align(
+                  alignment: const Alignment(0, 0.3),
+                  child: Text(tr('Reconectando…'), style: const TextStyle(color: Colors.white, fontSize: 18)),
+                ),
               if (error != null)
                 Center(
                   child: Padding(
@@ -780,6 +941,21 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     );
   }
 }
+
+/// Live channels: ffmpeg reconnects by itself after a short drop, and only
+/// a little is kept behind the current point (a channel cannot go back), so
+/// hours of watching do not fill the memory of a small box (Fire TV).
+const mpvLiveOptions = {
+  'stream-lavf-o': 'reconnect=1,reconnect_streamed=1,reconnect_delay_max=5',
+  'demuxer-max-back-bytes': '4194304',
+};
+
+String subSizeLabel(SubSize z) => switch (z) {
+  SubSize.small => tr('Pequeña'),
+  SubSize.normal => tr('Normal'),
+  SubSize.large => tr('Grande'),
+  SubSize.huge => tr('Muy grande'),
+};
 
 /// mpv's errors can quote the stream address, which carries the IPTV
 /// password: it never reaches the screen.
