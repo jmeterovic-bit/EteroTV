@@ -2,6 +2,7 @@
 
 ## 2.1.2
 - Mi lista: una película que terminas de ver (o que marcas como vista) sale sola de «Mi lista». Queda marcada como vista, y el cambio llega a los otros aparatos del mismo perfil. Las series se quedan, porque ver un capítulo no termina la serie.
+- TV: al llegar al último elemento de una fila, la flecha derecha ya no hace nada. Antes saltaba a «Ver todo» y de ahí a la fila siguiente, y era difícil quedarse en el último. «Ver todo» se sigue alcanzando con la flecha arriba.
 
 ## 2.0.0
 - Reproductor propio, ahora el de siempre (junta lo de 1.1.0 a 1.1.2 y estos arreglos de la Fire TV):

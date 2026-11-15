@@ -188,17 +188,21 @@ void main() {
     expect(focus().context!.findAncestorWidgetOfExactType<HeroBanner>(), isNotNull, reason: 'llegó arriba: $ups');
     expect(label(), startsWith('Continuar'), reason: 'el primer botón del destacado');
     expect(ups.where((l) => l == 'Ver todo').length, greaterThan(5), reason: 'pasó por los «Ver todo»: $ups');
-    // At the end of a row, right reaches its «Ver todo», and down leaves it.
+    // At the end of a row, right stays on the last item (it does not go on
+    // to «Ver todo» or to the next row).
     // Down to the first category row (Mi lista has no «Ver todo»).
     for (var i = 0; i < 6; i++) {
       await press(tester, LogicalKeyboardKey.arrowDown, 'abajo a una fila');
     }
-    for (var i = 0; i < 25 && label() != 'Ver todo'; i++) {
+    final rowTop = focus().rect.top;
+    for (var i = 0; i < 25; i++) {
       await press(tester, LogicalKeyboardKey.arrowRight, 'hasta el final de la fila');
+      expect(label(), isNot('Ver todo'));
+      expect(focus().rect.top, closeTo(rowTop, 2), reason: 'sigue en la misma fila');
     }
-    expect(label(), 'Ver todo');
-    await press(tester, LogicalKeyboardKey.arrowDown, 'abajo desde Ver todo');
-    expect(label(), isNot('Ver todo'));
+    final last = focus();
+    await press(tester, LogicalKeyboardKey.arrowRight, 'derecha en el último');
+    expect(focus(), same(last), reason: 'al final de la fila, derecha no hace nada');
   });
 
   testWidgets('Inicio: si el elemento enfocado desaparece, una flecha devuelve el foco', (tester) async {
