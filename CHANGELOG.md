@@ -1,5 +1,9 @@
 # Cambios
 
+## 2.1.2
+- Mi lista: una película que terminas de ver (o que marcas como vista) sale sola de «Mi lista». Queda marcada como vista, y el cambio llega a los otros aparatos del mismo perfil. Las series se quedan, porque ver un capítulo no termina la serie.
+- TV: al llegar al último elemento de una fila, la flecha derecha ya no hace nada. Antes saltaba a «Ver todo» y de ahí a la fila siguiente, y era difícil quedarse en el último. «Ver todo» se sigue alcanzando con la flecha arriba.
+
 ## 2.1.1
 - Reproductor: el tamaño de los subtítulos tiene su propio botón, una rueda dentada a la derecha de «Audio y subtítulos». Ese menú ya no lo incluye, para que no quede tan cargado.
 - Siguiente episodio: la tarjeta queda más pegada a la esquina de abajo a la derecha (antes flotaba a media altura) y es un 20 % más grande que en 2.1.0.

@@ -545,6 +545,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> setWatched(LibraryEntry e, bool watched) async {
+    if (watched) _leaveMyListIfSeen(e);
     e
       ..watched = watched
       ..positionSecs = watched ? e.durationSecs : 0
@@ -1270,7 +1271,15 @@ class AppState extends ChangeNotifier {
   static void applyResult(LibraryEntry e, PlayResult r) {
     if (r.durationSecs != null && r.durationSecs! > 0) e.durationSecs = r.durationSecs!;
     if (r.positionSecs != null && r.positionSecs! >= 0) e.positionSecs = r.positionSecs!;
+    final wasWatched = e.watched;
     e.watched = isWatched(e.positionSecs, e.durationSecs);
+    if (e.watched && !wasWatched) _leaveMyListIfSeen(e);
+  }
+
+  /// A movie that was seen leaves "Mi lista" but stays seen (pedido de Jose,
+  /// 2026-11-15). Series stay: a seen episode does not finish the series.
+  static void _leaveMyListIfSeen(LibraryEntry e) {
+    if (e.kind == Kind.movie) e.favorite = false;
   }
 }
 

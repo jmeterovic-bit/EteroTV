@@ -152,6 +152,25 @@ void main() {
     expect(b.entry(Kind.movie, 'm1')!.watched, isFalse);
   });
 
+  test('a movie seen leaves Mi lista on every device', () async {
+    final drive = _MemoryDrive();
+    final a = await device('A');
+    final b = await device('B');
+    final syncA = SyncService(a, auth: _SignedIn(), remote: drive);
+    final syncB = SyncService(b, auth: _SignedIn(), remote: drive);
+    await a.toggleFavorite(movie);
+    await syncA.syncNow();
+    await syncB.syncNow();
+    expect(b.myList.map((e) => e.id), ['m1']);
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    await a.setMovieWatched(movie, true);
+    expect(a.myList, isEmpty);
+    await syncA.syncNow();
+    await syncB.syncNow();
+    expect(b.myList, isEmpty);
+    expect(b.entry(Kind.movie, 'm1')!.watched, isTrue, reason: 'sigue en lo visto');
+  });
+
   test('IPTV account arrives on a new device', () async {
     final drive = _MemoryDrive();
     final a = await device('A');

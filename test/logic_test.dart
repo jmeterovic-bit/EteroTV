@@ -42,6 +42,18 @@ void main() {
       expect(e.watched, isTrue);
       expect(e.durationSecs, 6000);
     });
+
+    test('a movie seen to the end leaves Mi lista but stays seen', () {
+      final m = LibraryEntry(kind: Kind.movie, id: '1', name: 'x', updatedAt: 0, favorite: true);
+      AppState.applyResult(m, PlayResult(positionSecs: 1800, durationSecs: 6000));
+      expect(m.favorite, isTrue, reason: 'a medias sigue en Mi lista');
+      AppState.applyResult(m, PlayResult(positionSecs: 5900));
+      expect(m.watched, isTrue);
+      expect(m.favorite, isFalse);
+      final ep = LibraryEntry(kind: Kind.episode, id: '2', name: 'y', updatedAt: 0, favorite: true);
+      AppState.applyResult(ep, PlayResult(positionSecs: 5900, durationSecs: 6000));
+      expect(ep.favorite, isTrue, reason: 'solo las películas salen solas');
+    });
   });
 
   group('VLC on PC: position from status polling', () {

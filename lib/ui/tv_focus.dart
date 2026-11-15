@@ -12,7 +12,7 @@ import 'package:flutter/services.dart';
 /// - up and down go to the row above or below, to an item that shows on
 ///   screen, and stay in the same column (content or side menu);
 /// - left and right go along the row (scrolling it) and, at the start of a
-///   row, to the side menu;
+///   row, to the side menu; at the end of a row, right does nothing;
 /// - at an edge the focus stays where it is;
 /// - entering a tab again goes back to the item it had.
 ///
@@ -24,7 +24,7 @@ class TvRegionScope extends FocusScopeNode {
 }
 
 /// A row's «Ver todo» button: up from the row reaches it (it is the row's
-/// header), and right from the end of the row. (A node type and not a
+/// header). Right at the end of the row stays on the last item. (A node type and not a
 /// debugLabel: labels are empty in release builds.)
 class TvAsideNode extends FocusNode {}
 
@@ -233,12 +233,11 @@ bool tvFocusInDirection(FocusNode current, TraversalDirection direction, {bool r
         if (ahead(n.rect) && shows(n)) n,
     ];
     final band = cands.where((n) => _overlapY(n.rect, cur)).toList();
-    // At the end of a row, right goes to its «Ver todo» (just above it).
-    if (band.isEmpty && direction == TraversalDirection.right) {
-      final aside = all.where((n) => n is TvAsideNode && n.rect.bottom <= cur.top + 8 && n.rect.bottom > cur.top - 80);
-      if (aside.isNotEmpty) band.add(aside.first);
-    }
-    final pool = band.isNotEmpty ? band : cands;
+    // At the end of a row, right does nothing: before it went on to «Ver
+    // todo» and from there to the next row, so the last item was hard to
+    // reach (Jose, 2026-11-15). «Ver todo» is still up from the row.
+    final atRowEnd = band.isEmpty && direction == TraversalDirection.right && myRow != null;
+    final pool = band.isNotEmpty || atRowEnd ? band : cands;
     if (pool.isNotEmpty) {
       double score(FocusNode n) =>
           _gapX(n.rect, cur) + _gapY(n.rect, cur) * 4 + (n.rect.center.dy - cur.center.dy).abs() * 0.01;
