@@ -1,5 +1,10 @@
 # Cambios
 
+## 2.2.2
+- Canales: vuelve la revisión de 2.2.0 (2 s sobre un canal lo revisa), también justo después de ver uno. En 2.2.1 no se revisaba ningún canal durante 90 s tras salir del reproductor.
+- El canal que acabas de ver no se revisa (el reproductor ya dijo si funcionó), así que no queda en gris al volver.
+- Si otro canal falla en el primer minuto después de salir del reproductor, no se marca: el servidor puede estar contando todavía la conexión que se cerró. Se mantiene que solo queda en gris si falla dos veces seguidas.
+
 ## 2.2.1
 - Canales: un canal que funciona ya no queda en gris al volver del reproductor. Dos causas: un aviso del video antes de empezar (como «Could not open codec», que no impide verlo) contaba como falla, y la revisión del canal enfocado corría justo al salir, cuando el servidor todavía cuenta la conexión que se cerró. Ahora solo cuenta como falla si el canal no muestra nada en 20 s, pierde la señal, o sales antes de que empiece con un error en pantalla. La revisión espera 90 s después de ver un canal, y lo marca en gris solo si falla dos veces seguidas.
 
