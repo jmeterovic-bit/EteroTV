@@ -322,10 +322,29 @@ void main() {
       expect(s.channelStatus('3'), ChannelStatus.down);
 
       s.creds = Credentials(server: 'http://x:8080', username: 'u', password: 'p');
-      await s.playLive(news);
-      var asked = false;
-      await s.probeChannel('2', probe: (_) async => asked = true);
-      expect(asked, isFalse, reason: 'the server may still count the channel just closed');
+      await s.playLive(rmtv);
+      final asked = <String>[];
+      await s.probeChannel(
+        '2',
+        probe: (id) async {
+          asked.add(id);
+          return false;
+        },
+      );
+      expect(asked, isEmpty, reason: '2.2.2: the channel just watched is not checked');
+      // Others still are (2.2.1 checked none), but a miss right after
+      // watching marks nothing: the server may still count the closed one.
+      await s.probeChannel(
+        '4',
+        probe: (id) async {
+          asked.add(id);
+          return false;
+        },
+      );
+      expect(asked, ['4', '4']);
+      expect(s.channelStatus('4'), ChannelStatus.unknown);
+      await s.probeChannel('1', probe: (id) async => true);
+      expect(s.channelStatus('1'), ChannelStatus.up);
     });
 
     test('the short guide comes from the full one when there is one', () async {

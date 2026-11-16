@@ -857,6 +857,7 @@ class AppState extends ChangeNotifier {
     }
     await p.play(x.liveUrl(ch.id), title: ch.name);
     _playerClosedAt = _now;
+    _lastWatched = ch.id;
     x.close();
   }
 
@@ -1146,10 +1147,14 @@ class AppState extends ChangeNotifier {
   static const probeAgainAfter = Duration(minutes: 15);
 
   /// Right after a channel closes the server still counts that connection
-  /// and may refuse the next one: no check for a while (2.2.1, Jose: a
-  /// channel just watched went grey on going back).
-  static const probeQuietAfterPlay = Duration(seconds: 90);
+  /// and may refuse the next one (Jose: a channel just watched went grey on
+  /// going back). 2.2.2: the channel just watched is not checked (the player
+  /// already told), and a miss in this time marks nothing; other channels
+  /// are still checked (2.2.1 checked none for 90 s, Jose did not like it).
+  static const probeQuietAfterPlay = Duration(seconds: 60);
+  static const skipWatchedFor = Duration(minutes: 15);
   int _playerClosedAt = 0;
+  String? _lastWatched;
 
   @visibleForTesting
   static Duration probeRetryAfter = const Duration(seconds: 3);
@@ -1206,7 +1211,8 @@ class AppState extends ChangeNotifier {
     final h = _health[id];
     if (h != null && _now - h.at < probeAgainAfter.inMilliseconds) return;
     if (_probing.isNotEmpty) return;
-    if (_now - _playerClosedAt < probeQuietAfterPlay.inMilliseconds) return;
+    final sincePlay = _now - _playerClosedAt;
+    if (id == _lastWatched && sincePlay < skipWatchedFor.inMilliseconds) return;
     final o = own;
     if (o is OwnPlayer && o.isOpen) return;
     final x = probe == null ? client : null;
@@ -1223,6 +1229,7 @@ class AppState extends ChangeNotifier {
       }
       // A full account refuses any channel: that says nothing of this one.
       if (ok == false && probe == null && await connectionWarning() != null) ok = null;
+      if (ok == false && sincePlay < probeQuietAfterPlay.inMilliseconds) ok = null;
       if (ok != null) await markChannel(id, ok);
     } finally {
       x?.close();
