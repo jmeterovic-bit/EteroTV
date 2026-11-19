@@ -384,4 +384,13 @@ const fr = <String, String>{
   'Quitar filtros': 'Retirer les filtres',
   'Ya visto': 'Déjà vu',
   'hasta {0}': 'jusqu\'à {0}',
+  'Sincronizar el audio': 'Synchroniser l\'audio',
+  'Sincronizar el audio: {0}': 'Synchroniser l\'audio : {0}',
+  'Solo este video': 'Cette vidéo seulement',
+  'Todos los videos en este aparato': 'Toutes les vidéos sur cet appareil',
+  'Si el sonido llega antes que la imagen, usa +. Si llega tarde, usa −.':
+      'Si le son arrive avant l\'image, utilisez +. S\'il arrive en retard, utilisez −.',
+  'Adelantar el sonido': 'Son plus tôt',
+  'Atrasar el sonido': 'Son plus tard',
+  'Para todos los videos en este aparato (la TV o la barra de sonido pueden atrasar el sonido). Mientras ves, el botón del reloj también ajusta solo ese video.': 'Pour toutes les vidéos sur cet appareil (la télé ou la barre de son peuvent retarder le son). Pendant la lecture, le bouton de l\'horloge règle aussi cette vidéo seule.',
 };

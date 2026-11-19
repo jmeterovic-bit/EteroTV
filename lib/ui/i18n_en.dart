@@ -383,4 +383,13 @@ const en = <String, String>{
   'Quitar filtros': 'Clear filters',
   'Ya visto': 'Already watched',
   'hasta {0}': 'until {0}',
+  'Sincronizar el audio': 'Sync audio',
+  'Sincronizar el audio: {0}': 'Sync audio: {0}',
+  'Solo este video': 'This video only',
+  'Todos los videos en este aparato': 'All videos on this device',
+  'Si el sonido llega antes que la imagen, usa +. Si llega tarde, usa −.':
+      'If the sound comes before the picture, use +. If it comes late, use −.',
+  'Adelantar el sonido': 'Sound earlier',
+  'Atrasar el sonido': 'Sound later',
+  'Para todos los videos en este aparato (la TV o la barra de sonido pueden atrasar el sonido). Mientras ves, el botón del reloj también ajusta solo ese video.': 'For every video on this device (the TV or sound bar can delay the sound). While watching, the clock button can also adjust just that video.',
 };

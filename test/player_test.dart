@@ -68,4 +68,14 @@ void main() {
       expect(SubSize.values[i].scale > SubSize.values[i - 1].scale, isTrue);
     }
   });
+
+  test('sound delay: steps of 50 ms up to ±5 s, in seconds for mpv, shown with a sign', () {
+    expect(clampAudioDelay(130), 150);
+    expect(clampAudioDelay(-9000), -5000);
+    expect(mpvAudioDelay(-250), '-0.250');
+    expect(formatAudioDelay(0), '0 s');
+    expect(formatAudioDelay(250), '+0,25 s');
+    expect(formatAudioDelay(-1500), '−1,5 s');
+    expect(formatAudioDelay(1000), '+1 s');
+  });
 }

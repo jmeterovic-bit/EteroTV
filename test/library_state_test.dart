@@ -12,6 +12,9 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class _FakeVlc extends VlcLauncher {
   PlayResult? next;
+
+  /// What the player reports while it plays.
+  Future<void> Function(void Function(int, int)? onProgress)? whilePlaying;
   @override
   Future<bool> available() async => true;
   @override
@@ -20,7 +23,10 @@ class _FakeVlc extends VlcLauncher {
     required String title,
     int startSecs = 0,
     void Function(int, int)? onProgress,
-  }) async => next;
+  }) async {
+    await whilePlaying?.call(onProgress);
+    return next;
+  }
 }
 
 void main() {
@@ -125,6 +131,25 @@ void main() {
     vlc.next = null;
     expect(await s.playEpisode(series, ep(1, 2)), contains('no avisó'));
     expect(s.entry(Kind.episode, 'e12')!.positionSecs, 600, reason: 'kept');
+  });
+
+  test('the position is saved every 10 s while playing, so a crash keeps it', () async {
+    final movie = CatalogItem(kind: Kind.movie, id: 'm', name: 'Dune', categoryId: 'sf', extension: 'mkv');
+    final db = s.db;
+    int? saved;
+    vlc.whilePlaying = (report) async {
+      for (final p in [1, 5, 9, 10, 15, 21]) {
+        report!(p, 6000);
+      }
+      await Future<void>.delayed(Duration.zero);
+      saved = (await db.library()).firstWhere((e) => e.id == 'm').positionSecs;
+    };
+    await s.toggleFavorite(movie);
+    vlc.next = null; // the app "closed" without the player saying where
+    await s.playMovie(movie);
+    expect(saved, 21, reason: 'written at 10 s and at 21 s');
+    expect(s.entry(Kind.movie, 'm')!.positionSecs, 21);
+    expect(s.entry(Kind.movie, 'm')!.favorite, isTrue, reason: '«seen» is only decided at the end');
   });
 
   test('remove a series from Seguir viendo keeps what was seen', () async {

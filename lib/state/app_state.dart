@@ -53,6 +53,21 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  static const _audioDelayKey = 'audioDelayMs';
+
+  /// Own player: how late (+) or early (−) the sound plays, in ms, for every
+  /// video on this device (2.3.0). Per device: the delay comes from its TV,
+  /// sound bar or headphones, not from the video.
+  int get audioDelayMs => prefs.getInt(_audioDelayKey) ?? 0;
+
+  Future<void> setAudioDelayMs(int ms) async {
+    ms = clampAudioDelay(ms);
+    await prefs.setInt(_audioDelayKey, ms);
+    final o = own;
+    if (o is OwnPlayer) o.audioDelayMs = ms;
+    notifyListeners();
+  }
+
   /// This device plays with EteroTV's own player (not synced).
   bool get useOwnPlayer => prefs.getBool(_ownKey) ?? true;
 
@@ -292,7 +307,9 @@ class AppState extends ChangeNotifier {
       o
         ..decode = videoDecode
         ..subSize = subSize
-        ..onSubSize = setSubSize;
+        ..onSubSize = setSubSize
+        ..audioDelayMs = audioDelayMs
+        ..onAudioDelay = setAudioDelayMs;
     }
     _loadProfiles();
     _loadNews();
@@ -1527,20 +1544,25 @@ class AppState extends ChangeNotifier {
     _upNext = null;
     _seenNews(e);
     var nearEndFired = false;
+    var savedPos = start;
     final pl = player;
     final r = await pl.play(
       url,
       title: e.title,
       startSecs: start,
-      onProgress: e.kind != Kind.episode
-          ? null
-          : (pos, len) {
-              // Windows: credits reached while VLC is still playing.
-              if (!nearEndFired && creditsReached(pos, len)) {
-                nearEndFired = true;
-                nearEnd.value = e;
-              }
-            },
+      onProgress: (pos, len) {
+        // Credits reached while the video still plays (own player, VLC on Windows).
+        if (e.kind == Kind.episode && !nearEndFired && creditsReached(pos, len)) {
+          nearEndFired = true;
+          nearEnd.value = e;
+        }
+        // Every 10 s of video, the position is written down, so a crash or
+        // closing the app without leaving the video keeps it (Jose, 2026-11-19).
+        if ((pos - savedPos).abs() >= progressSaveEverySecs) {
+          savedPos = pos;
+          unawaited(_saveWhilePlaying(e, pos, len));
+        }
+      },
     );
     // VLC did not report: keep what we had and say so.
     if (r == null || r.positionSecs == null) {
@@ -1557,6 +1579,26 @@ class AppState extends ChangeNotifier {
     // No message when it went well: Jose did not want to see the time
     // after each video (2026-11-10). The list shows the progress.
     return null;
+  }
+
+  /// Saves where the video is while it plays. Only on this device: the
+  /// synced copy goes when the video ends (or at the next sync after a
+  /// crash), not every 10 s over the network. "Seen" is decided at the end:
+  /// a movie seen mid-way would leave «Mi lista» even if the user then goes
+  /// back and stops half-way.
+  Future<void> _saveWhilePlaying(LibraryEntry e, int pos, int len) async {
+    e
+      ..positionSecs = pos
+      ..updatedAt = _now
+      ..device = deviceId;
+    if (len > 0) e.durationSecs = len;
+    e.profile = profileId;
+    _library[e.key] = e;
+    try {
+      await db.saveEntry(e);
+    } catch (_) {
+      // The next one (or the end of the video) saves it.
+    }
   }
 
   // ---- Folders with PIN ----

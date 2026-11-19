@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -252,6 +254,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final z = await _choose(tr('Tamaño de los subtítulos'), SubSize.values, s.subSize, subSizeLabel);
                 if (z != null) await s.setSubSize(z);
               },
+            ),
+          if (s.useOwnPlayer)
+            ListTile(
+              leading: const Icon(Icons.av_timer),
+              title: Text(tr('Sincronizar el audio: {0}', [formatAudioDelay(s.audioDelayMs)])),
+              subtitle: Text(
+                tr(
+                  'Para todos los videos en este aparato (la TV o la barra de sonido pueden atrasar el sonido). Mientras ves, el botón del reloj también ajusta solo ese video.',
+                ),
+              ),
+              onTap: () => showDialog<void>(
+                context: context,
+                builder: (c) => AudioDelayDialog(
+                  rows: [
+                    AudioDelayRow(tr('Todos los videos en este aparato'), () => s.audioDelayMs, (ms) {
+                      unawaited(s.setAudioDelayMs(ms));
+                    }),
+                  ],
+                ),
+              ),
             )
           else if (s.androidPlayer == null)
             ListTile(
