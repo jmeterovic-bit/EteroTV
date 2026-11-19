@@ -1,5 +1,11 @@
 # Cambios
 
+## 2.3.0
+- Reproductor propio: guarda hasta dónde vas cada 10 s de video. Si la app se cierra o se cae sin salir del video, la próxima vez sigue desde ahí (con unos segundos de diferencia como mucho). Lo visto y «Mi lista» se deciden al salir, como antes. Con VLC en Windows también.
+- Sincronizar el audio: botón del reloj en la barra del reproductor. «Solo este video» corrige el desfase del video que estás viendo y se olvida al salir; «Todos los videos en este aparato» queda guardado (también en Ajustes → Reproductor). − y + mueven el sonido 50 ms (mantener repite), hasta 5 s; «0» lo deja como venía. Si el sonido llega antes que la imagen, usa +.
+- TV: la sombra detrás de la barra de arriba y de abajo del reproductor llega a los bordes de la pantalla. Antes se cortaba antes de cada costado. Los botones y el texto siguen con su margen.
+- Android (celular y TV): imagen en imagen. Si sales a otra app (Inicio, o las apps recientes) con el video andando, sigue en una ventanita encima de todo. Tocarla vuelve al video; cerrarla sale del video y guarda hasta dónde viste. Con el video en pausa no se achica. En aparatos que no lo permiten (algunas TV) no cambia nada.
+
 ## 2.2.2
 - Canales: vuelve la revisión de 2.2.0 (2 s sobre un canal lo revisa), también justo después de ver uno. En 2.2.1 no se revisaba ningún canal durante 90 s tras salir del reproductor.
 - El canal que acabas de ver no se revisa (el reproductor ya dijo si funcionó), así que no queda en gris al volver.

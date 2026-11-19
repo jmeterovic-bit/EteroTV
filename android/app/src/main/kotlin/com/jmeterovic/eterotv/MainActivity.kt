@@ -8,6 +8,10 @@ import android.os.SystemClock
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
+import android.app.PictureInPictureParams
+import android.os.Build
+import android.util.Rational
+import androidx.annotation.RequiresApi
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -22,6 +26,14 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val vlcRequest = 4242
     private var pending: MethodChannel.Result? = null
+
+    // Picture in picture (2.3.0): the own player allows it while a video plays.
+    private var pipChannel: MethodChannel? = null
+    private var pipAllowed = false
+    private var pipRatio = Rational(16, 9)
+    private var resumed = false
+    private var stopped = false
+    private var leftPip = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -44,6 +56,83 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        pipChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "eterotv/pip").apply {
+            setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "allow" -> {
+                        pipAllowed = call.argument<Boolean>("on") == true
+                        pipRatio = pipShape(
+                            (call.argument<Number>("width") ?: 16).toInt(),
+                            (call.argument<Number>("height") ?: 9).toInt(),
+                        )
+                        result.success(pipSupported())
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
+    }
+
+    private fun pipSupported(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+
+    /** Android takes shapes between 1:2.39 and 2.39:1 only. */
+    private fun pipShape(w: Int, h: Int): Rational {
+        if (w <= 0 || h <= 0) return Rational(16, 9)
+        val r = w.toDouble() / h
+        return when {
+            r > 2.39 -> Rational(239, 100)
+            r < 1 / 2.39 -> Rational(100, 239)
+            else -> Rational(w, h)
+        }
+    }
+
+    /** Home or another app while a video plays: keep it in a small window. */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (!pipAllowed || pending != null || !pipSupported()) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        try {
+            enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(pipRatio).build())
+        } catch (_: Exception) {
+            // Some TVs say they can and then refuse: the video keeps playing behind.
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        pipChannel?.invokeMethod("changed", isInPictureInPictureMode)
+        if (isInPictureInPictureMode || resumed) return
+        // Out of the small window without coming back to the app: it was
+        // closed. Android may stop the activity before or after telling.
+        if (stopped) pipChannel?.invokeMethod("closed", null) else leftPip = true
+    }
+
+    override fun onResume() {
+        super.onResume()
+        resumed = true
+        leftPip = false
+    }
+
+    override fun onPause() {
+        super.onPause()
+        resumed = false
+    }
+
+    override fun onStart() {
+        super.onStart()
+        stopped = false
+    }
+
+    override fun onStop() {
+        super.onStop()
+        stopped = true
+        if (leftPip) {
+            leftPip = false
+            pipChannel?.invokeMethod("closed", null)
+        }
     }
 
     /** Asks Android who can open the VLC "result" intent, instead of

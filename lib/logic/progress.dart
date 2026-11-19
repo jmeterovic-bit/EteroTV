@@ -33,3 +33,7 @@ String formatTime(int secs) {
   String two(int v) => v.toString().padLeft(2, '0');
   return h > 0 ? '$h:${two(m)}:${two(s)}' : '$m:${two(s)}';
 }
+
+/// While a video plays, its position is saved every this many seconds of
+/// video (2.3.0), so it is not lost if the app closes without leaving it.
+const progressSaveEverySecs = 10;

@@ -8,6 +8,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../iptv/xtream.dart';
 import '../platform/device.dart';
+import '../platform/pip.dart';
 import '../ui/i18n.dart';
 import '../ui/remote.dart';
 import 'vlc.dart';
@@ -102,6 +103,12 @@ class OwnPlayer extends VlcLauncher {
   /// The size chosen while watching, to keep it for the next video.
   void Function(SubSize)? onSubSize;
 
+  /// Sound delay for every video on this device, in ms (2.3.0).
+  int audioDelayMs = 0;
+
+  /// The general delay changed while watching, to keep it.
+  void Function(int)? onAudioDelay;
+
   /// For the next live channel: its guide, shown over the video.
   Future<List<EpgEntry>> Function()? nextEpg;
 
@@ -152,6 +159,11 @@ class OwnPlayer extends VlcLauncher {
               subSize = z;
               onSubSize?.call(z);
             },
+            audioDelayMs: audioDelayMs,
+            onAudioDelay: (ms) {
+              audioDelayMs = ms;
+              onAudioDelay?.call(ms);
+            },
             epg: epg,
             onHealth: health,
             onProgress: onProgress,
@@ -179,6 +191,8 @@ class OwnPlayerScreen extends StatefulWidget {
     this.decode = VideoDecode.auto,
     this.subSize = SubSize.normal,
     this.onSubSize,
+    this.audioDelayMs = 0,
+    this.onAudioDelay,
     this.epg,
     this.onHealth,
     this.onProgress,
@@ -194,6 +208,10 @@ class OwnPlayerScreen extends StatefulWidget {
   final VideoDecode decode;
   final SubSize subSize;
   final void Function(SubSize)? onSubSize;
+
+  /// Sound delay for every video on this device (ms), and where a change goes.
+  final int audioDelayMs;
+  final void Function(int)? onAudioDelay;
 
   /// Live channels: loads the guide shown in the bar.
   final Future<List<EpgEntry>> Function()? epg;
@@ -266,6 +284,36 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
 
   late SubSize _subSize = widget.subSize;
 
+  /// Sound delay (ms): for every video on this device, and only for this
+  /// one (2.3.0, Jose: «general» and «local»). mpv plays the sum.
+  late int _generalDelay = widget.audioDelayMs;
+  int _localDelay = 0;
+
+  Future<void> _applyDelay() async {
+    final native = _player.platform;
+    if (native is! NativePlayer) return;
+    try {
+      await native.setProperty('audio-delay', mpvAudioDelay(_generalDelay + _localDelay));
+    } catch (_) {}
+  }
+
+  /// Picture in picture: allowed only while the video plays (Android).
+  void _updatePip() {
+    final w = _player.state.width ?? 0;
+    final h = _player.state.height ?? 0;
+    unawaited(Pip.allow(_playing && !_closing, width: w > 0 ? w : 16, height: h > 0 ? h : 9));
+  }
+
+  void _onPip() {
+    if (!mounted) return;
+    if (Pip.active.value) {
+      _hideTimer?.cancel();
+      _overlay = false;
+      _flash = null;
+    }
+    setState(() {});
+  }
+
   /// Live channels: the stream is being opened again.
   bool _reconnecting = false;
   int _retries = 0;
@@ -319,7 +367,13 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
         }),
       )
       ..add(_player.stream.duration.listen((d) => setState(() => _len = d)))
-      ..add(_player.stream.playing.listen((v) => setState(() => _playing = v)))
+      ..add(
+        _player.stream.playing.listen((v) {
+          setState(() => _playing = v);
+          _updatePip();
+        }),
+      )
+      ..add(_player.stream.width.listen((_) => _updatePip()))
       ..add(_player.stream.buffering.listen((v) => setState(() => _buffering = v)))
       ..add(
         _player.stream.error.listen((e) {
@@ -341,6 +395,8 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
           }
         }),
       );
+    Pip.onClosed = close;
+    Pip.active.addListener(_onPip);
     _start();
     _showOverlay();
     _loadGuide();
@@ -366,6 +422,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
       for (final o in options.entries) {
         await native.setProperty(o.key, o.value);
       }
+      await _applyDelay();
     }
     await _player.open(Media(widget.url, start: Duration(seconds: widget.startSecs)));
   }
@@ -426,6 +483,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     if (!_started && _error != null) _health(false);
     _closing = true;
     _seekTarget = null;
+    _updatePip();
     // The next-episode card may be over the player: take out the player's
     // own screen, not whatever is on top (a plain pop closed the card).
     final route = ModalRoute.of(context);
@@ -452,6 +510,9 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _stallTimer?.cancel();
     _openTimer?.cancel();
     _focus.dispose();
+    Pip.active.removeListener(_onPip);
+    if (Pip.onClosed == close) Pip.onClosed = null;
+    unawaited(Pip.allow(false));
     unawaited(_release(_player));
     leaveTvFullScreen();
     if (Platform.isAndroid) SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -554,6 +615,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     if (!_live) _Action(Icons.forward_10, tr('Adelante 10 s'), () => _seekBy(_step)),
     _Action(Icons.subtitles, tr('Audio y subtítulos'), _chooseTracks),
     _Action(Icons.settings, tr('Tamaño de los subtítulos'), _chooseSubSize),
+    _Action(Icons.av_timer, tr('Sincronizar el audio'), _chooseAudioDelay),
     if (!touch) _Action(Icons.fullscreen, tr('Pantalla completa'), _toggleFullscreen),
   ];
 
@@ -767,6 +829,33 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     }
   }
 
+  /// Sound ahead of or behind the picture (2.3.0): for every video on this
+  /// device, and only for this one. It changes while the dialog is open, so
+  /// the effect is seen at once.
+  Future<void> _chooseAudioDelay() async {
+    _hideTimer?.cancel();
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AudioDelayDialog(
+        rows: [
+          AudioDelayRow(tr('Solo este video'), () => _localDelay, (ms) {
+            _localDelay = ms;
+            unawaited(_applyDelay());
+          }),
+          AudioDelayRow(tr('Todos los videos en este aparato'), () => _generalDelay, (ms) {
+            _generalDelay = ms;
+            widget.onAudioDelay?.call(ms);
+            unawaited(_applyDelay());
+          }),
+        ],
+      ),
+    );
+    if (mounted) {
+      _focus.requestFocus();
+      _showOverlay();
+    }
+  }
+
   static String _langName(String code) => switch (code.toLowerCase()) {
     'es' || 'spa' => tr('Español'),
     'en' || 'eng' => tr('Inglés'),
@@ -840,7 +929,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                     ),
                   ),
                 ),
-              if (_flash != null)
+              if (_flash != null && !Pip.active.value)
                 Center(
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -848,7 +937,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                     child: Text(_flash!, style: const TextStyle(color: Colors.white, fontSize: 28)),
                   ),
                 ),
-              if (_overlay) _bar(touch),
+              if (_overlay && !Pip.active.value) _bar(touch),
             ],
           ),
         ),
@@ -864,9 +953,12 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     String hm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
     final lineSelected = _keys && _sel < 0;
     // Big screens (TV) get a margin so nothing falls off the edge (overscan).
-    final edge = runningOnTv ? const EdgeInsets.symmetric(horizontal: 48, vertical: 24) : EdgeInsets.zero;
-    return Padding(
-      padding: edge,
+    // It goes inside the shaded bands, which reach the edges of the screen
+    // (2.3.0: on the TV they stopped 48 dp short of each side, Jose).
+    final tv = runningOnTv;
+    final side = tv ? 48.0 : 0.0;
+    final edge = tv ? 24.0 : 0.0;
+    return SizedBox.expand(
       child: Column(
         children: [
           Container(
@@ -877,7 +969,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                 colors: [Colors.black87, Colors.transparent],
               ),
             ),
-            padding: const EdgeInsets.fromLTRB(8, 16, 16, 32),
+            padding: EdgeInsets.fromLTRB(8 + side, 16 + edge, 16 + side, 32),
             child: Row(
               children: [
                 ExcludeFocus(
@@ -909,7 +1001,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                 colors: [Colors.black87, Colors.transparent],
               ),
             ),
-            padding: const EdgeInsets.fromLTRB(16, 32, 16, 12),
+            padding: EdgeInsets.fromLTRB(16 + side, 32, 16 + side, 12 + edge),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1002,6 +1094,98 @@ const mpvLiveOptions = {
   'stream-lavf-o': 'reconnect=1,reconnect_streamed=1,reconnect_delay_max=5',
   'demuxer-max-back-bytes': '4194304',
 };
+
+/// The sound delay can go from −5 s to +5 s, in steps of 50 ms.
+const audioDelayStep = 50;
+const audioDelayMax = 5000;
+
+int clampAudioDelay(int ms) => ((ms / audioDelayStep).round() * audioDelayStep).clamp(-audioDelayMax, audioDelayMax);
+
+/// mpv's `audio-delay`, in seconds: positive plays the sound later.
+String mpvAudioDelay(int ms) => (ms / 1000).toStringAsFixed(3);
+
+/// «+0,25 s», «−1,5 s», «0 s» (a comma in Spanish and French).
+String formatAudioDelay(int ms) {
+  if (ms == 0) return '0 s';
+  var n = (ms.abs() / 1000).toStringAsFixed(2);
+  n = n.replaceFirst(RegExp(r'\.?0+$'), '');
+  if (uiLang != UiLang.en) n = n.replaceAll('.', ',');
+  return '${ms > 0 ? '+' : '−'}$n s';
+}
+
+/// One line of [AudioDelayDialog]: what it changes, and its value.
+class AudioDelayRow {
+  const AudioDelayRow(this.label, this.value, this.onChanged);
+  final String label;
+  final int Function() value;
+  final void Function(int ms) onChanged;
+}
+
+/// − and + move the sound 50 ms (holding OK repeats); «0» puts it back.
+/// Used by the player and by Ajustes → Reproductor.
+class AudioDelayDialog extends StatefulWidget {
+  const AudioDelayDialog({super.key, required this.rows});
+  final List<AudioDelayRow> rows;
+
+  @override
+  State<AudioDelayDialog> createState() => _AudioDelayDialogState();
+}
+
+class _AudioDelayDialogState extends State<AudioDelayDialog> {
+  void _set(AudioDelayRow r, int ms) {
+    setState(() => r.onChanged(clampAudioDelay(ms)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text(tr('Sincronizar el audio')),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              tr('Si el sonido llega antes que la imagen, usa +. Si llega tarde, usa −.'),
+              style: theme.textTheme.bodySmall,
+            ),
+            for (final (i, r) in widget.rows.indexed) ...[
+              const SizedBox(height: 16),
+              Text(r.label, style: theme.textTheme.titleSmall),
+              Row(
+                children: [
+                  IconButton.outlined(
+                    tooltip: tr('Adelantar el sonido'),
+                    icon: const Icon(Icons.remove),
+                    onPressed: () => _set(r, r.value() - audioDelayStep),
+                  ),
+                  SizedBox(
+                    width: 96,
+                    child: Text(
+                      formatAudioDelay(r.value()),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                  IconButton.outlined(
+                    autofocus: i == 0,
+                    tooltip: tr('Atrasar el sonido'),
+                    icon: const Icon(Icons.add),
+                    onPressed: () => _set(r, r.value() + audioDelayStep),
+                  ),
+                  const SizedBox(width: 12),
+                  TextButton(onPressed: () => _set(r, 0), child: const Text('0')),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Listo')))],
+    );
+  }
+}
 
 String subSizeLabel(SubSize z) => switch (z) {
   SubSize.small => tr('Pequeña'),
