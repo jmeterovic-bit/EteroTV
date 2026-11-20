@@ -9,6 +9,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../iptv/xtream.dart';
 import '../platform/device.dart';
 import '../platform/pip.dart';
+import '../platform/win_window.dart';
 import '../ui/i18n.dart';
 import '../ui/remote.dart';
 import 'vlc.dart';
@@ -47,15 +48,28 @@ enum SubSize {
   static SubSize fromName(String? n) => values.firstWhere((d) => d.name == n, orElse: () => normal);
 
   /// media_kit draws the subtitles itself: its normal style, scaled.
-  SubtitleViewConfiguration get configuration => SubtitleViewConfiguration(
-    style: TextStyle(
-      height: 1.4,
-      fontSize: 32 * scale,
-      color: const Color(0xffffffff),
-      backgroundColor: const Color(0xaa000000),
-    ),
+  SubtitleViewConfiguration get configuration => SubtitleViewConfiguration(style: _style);
+
+  TextStyle get _style => TextStyle(
+    height: 1.4,
+    fontSize: 32 * scale,
+    color: const Color(0xffffffff),
+    backgroundColor: const Color(0xaa000000),
+  );
+
+  /// In a small window (picture in picture, or the small window on top of
+  /// Windows), 2.4.0: media_kit shrinks the text with the square root of the
+  /// area, which left it unreadable at a quarter of the screen. Here the
+  /// text follows the window's height instead (about 5 % of it at Normal).
+  SubtitleViewConfiguration compact(double height) => SubtitleViewConfiguration(
+    style: _style,
+    textScaler: TextScaler.linear(compactSubScale(height)),
+    padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
   );
 }
+
+/// How much the subtitle text is scaled in a small window [height] tall.
+double compactSubScale(double height) => (height * 0.055 / 32).clamp(0.2, 1.0);
 
 /// Live channels: what to do when the stream stops. The server sometimes
 /// drops the connection (seen on the Fire TV after ~40 min, 2026-11-13):
@@ -304,6 +318,31 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     unawaited(Pip.allow(_playing && !_closing, width: w > 0 ? w : 16, height: h > 0 ? h : 9));
   }
 
+  /// Windows: the window is small and above the other programs (2.4.0).
+  bool _mini = false;
+
+  /// The video is in a small window (Android picture in picture, or [_mini]).
+  bool get _small => _mini || Pip.active.value;
+
+  Future<void> _toggleMini() async {
+    if (!Platform.isWindows) return;
+    if (_mini) {
+      WinMini.restore();
+      setState(() => _mini = false);
+      _showOverlay();
+      return;
+    }
+    if (_fullscreen) {
+      _fullscreen = false;
+      await defaultExitNativeFullscreen();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+    final ok = WinMini.shrink(videoW: _player.state.width ?? 16, videoH: _player.state.height ?? 9);
+    if (!mounted) return;
+    setState(() => _mini = ok);
+    _hideOverlay();
+  }
+
   void _onPip() {
     if (!mounted) return;
     if (Pip.active.value) {
@@ -513,6 +552,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     Pip.active.removeListener(_onPip);
     if (Pip.onClosed == close) Pip.onClosed = null;
     unawaited(Pip.allow(false));
+    if (_mini) WinMini.restore();
     unawaited(_release(_player));
     leaveTvFullScreen();
     if (Platform.isAndroid) SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -617,6 +657,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _Action(Icons.settings, tr('Tamaño de los subtítulos'), _chooseSubSize),
     _Action(Icons.av_timer, tr('Sincronizar el audio'), _chooseAudioDelay),
     if (!touch) _Action(Icons.fullscreen, tr('Pantalla completa'), _toggleFullscreen),
+    if (Platform.isWindows) _Action(Icons.picture_in_picture_alt, tr('Ventana pequeña encima'), _toggleMini),
   ];
 
   int get _playIndex => _live ? 0 : 1;
@@ -652,12 +693,14 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
       _player.play();
     } else if (k == LogicalKeyboardKey.mediaPause) {
       _player.pause();
+    } else if (k == LogicalKeyboardKey.escape && _mini) {
+      if (!repeat) _toggleMini();
     } else if (k == LogicalKeyboardKey.mediaStop || k == LogicalKeyboardKey.escape) {
       close();
     } else if (k == LogicalKeyboardKey.keyL || k == LogicalKeyboardKey.contextMenu) {
       if (!repeat) _chooseTracks();
     } else if (k == LogicalKeyboardKey.keyF && !Platform.isAndroid) {
-      if (!repeat) _toggleFullscreen();
+      if (!repeat) _mini ? _toggleMini() : _toggleFullscreen();
     } else if (!_overlay) {
       // Bar hidden: ◀ ▶ move the video, OK pauses, anything else shows the bar.
       if (left || right) {
@@ -890,7 +933,15 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Video(controller: _video, controls: NoVideoControls, subtitleViewConfiguration: _subSize.configuration),
+              // Subtitles also show in a small window, at a size that can be
+              // read there (Jose, 2026-11-20).
+              Video(
+                controller: _video,
+                controls: NoVideoControls,
+                subtitleViewConfiguration: _small
+                    ? _subSize.compact(MediaQuery.sizeOf(context).height)
+                    : _subSize.configuration,
+              ),
               // Phone: tap shows the bar, double tap on a side jumps 10 s
               // (like VLC). Windows: click pauses, double click is full screen.
               Row(
@@ -904,7 +955,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                           touch ? _toggleOverlay() : _playPause();
                         },
                         onDoubleTap: !touch
-                            ? _toggleFullscreen
+                            ? (_mini ? _toggleMini : _toggleFullscreen)
                             : side == 0
                             ? _playPause
                             : () => _seekBy(side < 0 ? -_step : _step),
@@ -937,13 +988,42 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                     child: Text(_flash!, style: const TextStyle(color: Colors.white, fontSize: 28)),
                   ),
                 ),
-              if (_overlay && !Pip.active.value) _bar(touch),
+              if (_overlay && !_small) _bar(touch),
+              if (_overlay && _mini) _miniBar(),
             ],
           ),
         ),
       ),
     );
   }
+
+  /// The small window on top: only pause, back to normal size and leave.
+  Widget _miniBar() => Align(
+    alignment: Alignment.topRight,
+    child: Container(
+      margin: const EdgeInsets.all(6),
+      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final a in [
+            _Action(_playing ? Icons.pause : Icons.play_arrow, _playing ? tr('Pausa') : tr('Reproducir'), _playPause),
+            _Action(Icons.open_in_full, tr('Volver al tamaño normal'), _toggleMini),
+            _Action(Icons.close, tr('Salir'), close),
+          ])
+            ExcludeFocus(
+              child: IconButton(
+                color: Colors.white,
+                iconSize: 22,
+                tooltip: a.tip,
+                icon: Icon(a.icon),
+                onPressed: a.onTap,
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
 
   Widget _bar(bool touch) {
     const white = TextStyle(color: Colors.white);

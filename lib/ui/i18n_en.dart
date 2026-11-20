@@ -392,4 +392,6 @@ const en = <String, String>{
   'Adelantar el sonido': 'Sound earlier',
   'Atrasar el sonido': 'Sound later',
   'Para todos los videos en este aparato (la TV o la barra de sonido pueden atrasar el sonido). Mientras ves, el botón del reloj también ajusta solo ese video.': 'For every video on this device (the TV or sound bar can delay the sound). While watching, the clock button can also adjust just that video.',
+  'Ventana pequeña encima': 'Small window on top',
+  'Volver al tamaño normal': 'Back to normal size',
 };

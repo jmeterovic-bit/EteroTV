@@ -1,5 +1,9 @@
 # Cambios
 
+## 2.4.0
+- Windows: «Ventana pequeña encima», un botón nuevo en la barra del reproductor. La ventana de EteroTV se achica a la esquina de abajo a la derecha (480 de ancho, con la forma del video) y queda encima de los otros programas mientras trabajas. Se puede mover por su barra de título. Al pasar el mouse aparecen pausa, volver al tamaño normal y salir; doble clic o Esc también la devuelven a su tamaño. Al salir del video la ventana vuelve a como estaba.
+- Subtítulos en la ventanita (Windows y la imagen en imagen de Android): si están activados, se siguen viendo, con un tamaño pensado para la ventana chica (antes se habrían achicado hasta no leerse). Respetan el tamaño elegido (Pequeña…Muy grande).
+
 ## 2.3.1
 - Ajustes → Acerca de muestra la versión instalada de verdad, con su número de compilación. Antes decía siempre 2.0.0.
 

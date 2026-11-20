@@ -78,4 +78,10 @@ void main() {
     expect(formatAudioDelay(-1500), '−1,5 s');
     expect(formatAudioDelay(1000), '+1 s');
   });
+
+  test('subtitles in a small window follow its height, so they can still be read', () {
+    expect(32 * compactSubScale(270), closeTo(270 * 0.055, 0.01));
+    expect(compactSubScale(2000), 1.0, reason: 'never bigger than normal');
+    expect(compactSubScale(10), 0.2);
+  });
 }
