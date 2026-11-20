@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../iptv/xtream.dart';
@@ -413,9 +414,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
-          const AboutListTile(applicationName: 'EteroTV', applicationVersion: '2.0.0'),
+          // The version of the installed app (it was written by hand and
+          // stayed at 2.0.0, Jose 2026-11-19).
+          FutureBuilder<String>(
+            future: appVersion(),
+            builder: (_, v) => AboutListTile(applicationName: 'EteroTV', applicationVersion: v.data ?? ''),
+          ),
         ],
       ),
     );
   }
 }
+
+/// «2.3.0 (build 60)»: the version and build of the app installed, as the
+/// APK or the Windows program says. Empty if it cannot be read.
+Future<String> appVersion() => _version ??= () async {
+  try {
+    final p = await PackageInfo.fromPlatform();
+    return p.buildNumber.isEmpty ? p.version : '${p.version} (build ${p.buildNumber})';
+  } catch (_) {
+    return '';
+  }
+}();
+Future<String>? _version;

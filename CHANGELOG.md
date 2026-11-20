@@ -1,5 +1,8 @@
 # Cambios
 
+## 2.3.1
+- Ajustes → Acerca de muestra la versión instalada de verdad, con su número de compilación. Antes decía siempre 2.0.0.
+
 ## 2.3.0
 - Reproductor propio: guarda hasta dónde vas cada 10 s de video. Si la app se cierra o se cae sin salir del video, la próxima vez sigue desde ahí (con unos segundos de diferencia como mucho). Lo visto y «Mi lista» se deciden al salir, como antes. Con VLC en Windows también.
 - Sincronizar el audio: botón del reloj en la barra del reproductor. «Solo este video» corrige el desfase del video que estás viendo y se olvida al salir; «Todos los videos en este aparato» queda guardado (también en Ajustes → Reproductor). − y + mueven el sonido 50 ms (mantener repite), hasta 5 s; «0» lo deja como venía. Si el sonido llega antes que la imagen, usa +.
