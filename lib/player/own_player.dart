@@ -33,6 +33,39 @@ Map<String, String> mpvTrackOptions(TrackLang audio, TrackLang subs) => {
   'subs-fallback-forced': 'no',
 };
 
+/// Whether a track (its language tag and title) is in [lang]. Any variant
+/// counts: «Español (Latinoamérica)», es-419, es-MX, «Castellano», «Latino»
+/// (2.4.0, Jose: mpv only took the plain «es»/«spa» tags).
+bool trackIsLang(String? language, String? title, TrackLang lang) {
+  final tag = (language ?? '').toLowerCase().trim();
+  final name = (title ?? '').toLowerCase();
+  final (codes, words) = switch (lang) {
+    TrackLang.es => (['es', 'spa', 'esp', 'lat'], ['español', 'espanol', 'spanish', 'castellano', 'latino']),
+    TrackLang.en => (['en', 'eng'], ['english', 'inglés', 'ingles', 'anglais']),
+    TrackLang.fr => (['fr', 'fra', 'fre'], ['français', 'francais', 'french', 'francés', 'frances']),
+    _ => (const <String>[], const <String>[]),
+  };
+  if (codes.any((c) => tag == c || tag.startsWith('$c-') || tag.startsWith('${c}_'))) return true;
+  return words.any((w) => name.contains(w) || tag.contains(w));
+}
+
+/// A subtitle track only for the foreign bits («Forzado», «Forzados», «Forced»):
+/// never chosen on its own.
+bool trackIsForced(String? title) {
+  final t = (title ?? '').toLowerCase();
+  return t.contains('forzad') || t.contains('forced') || t.contains('forcé');
+}
+
+/// Which of the [tracks] ((language, title) each) to use for [lang]: the
+/// first one in that language that is not forced (subtitles), or null.
+int? pickTrack(List<(String?, String?)> tracks, TrackLang lang, {bool subtitles = true}) {
+  for (final (i, (language, title)) in tracks.indexed) {
+    if (subtitles && trackIsForced(title)) continue;
+    if (trackIsLang(language, title, lang)) return i;
+  }
+  return null;
+}
+
 /// How big the subtitles are (Ajustes → Reproductor, or «Audio y
 /// subtítulos» while watching; per device, since each screen is seen from
 /// its own distance).
@@ -413,6 +446,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
         }),
       )
       ..add(_player.stream.width.listen((_) => _updatePip()))
+      ..add(_player.stream.tracks.listen(_chooseLanguages))
       ..add(_player.stream.buffering.listen((v) => setState(() => _buffering = v)))
       ..add(
         _player.stream.error.listen((e) {
@@ -451,6 +485,41 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     }
     if (Platform.isAndroid) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
+  }
+
+  /// The profile's languages, chosen by EteroTV once the tracks are known
+  /// (mpv's `alang`/`slang` only match exact tags). Once per video, so a
+  /// track picked by hand stays.
+  bool _audioChosen = false;
+  bool _subsChosen = false;
+
+  void _chooseLanguages(Tracks t) {
+    if (_closing) return;
+    final audio = [
+      for (final a in t.audio)
+        if (a.id != 'auto' && a.id != 'no') a,
+    ];
+    final subs = [
+      for (final x in t.subtitle)
+        if (x.id != 'auto' && x.id != 'no') x,
+    ];
+    final current = _player.state.track;
+    if (!_audioChosen && audio.isNotEmpty && widget.audio.vlcCodes != null) {
+      _audioChosen = true;
+      final now = current.audio;
+      if (!trackIsLang(now.language, now.title, widget.audio)) {
+        final i = pickTrack([for (final a in audio) (a.language, a.title)], widget.audio, subtitles: false);
+        if (i != null) unawaited(_player.setAudioTrack(audio[i]));
+      }
+    }
+    if (!_subsChosen && subs.isNotEmpty && widget.subs.vlcCodes != null) {
+      _subsChosen = true;
+      final now = current.subtitle;
+      if (!trackIsLang(now.language, now.title, widget.subs) || trackIsForced(now.title)) {
+        final i = pickTrack([for (final x in subs) (x.language, x.title)], widget.subs);
+        if (i != null) unawaited(_player.setSubtitleTrack(subs[i]));
+      }
     }
   }
 

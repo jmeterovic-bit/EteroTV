@@ -84,4 +84,21 @@ void main() {
     expect(compactSubScale(2000), 1.0, reason: 'never bigger than normal');
     expect(compactSubScale(10), 0.2);
   });
+
+  test('Spanish subtitles: any variant counts, forced ones are skipped', () {
+    final tracks = [
+      ('eng', 'English'),
+      ('spa', 'Español (Forzados)'),
+      ('es-419', 'Español (Latinoamérica)'),
+      ('spa', 'Español (España)'),
+    ];
+    expect(pickTrack(tracks, TrackLang.es), 2);
+    expect(pickTrack([(null, 'Español (Latinoamérica)')], TrackLang.es), 0);
+    expect(pickTrack([('lat', null)], TrackLang.es), 0);
+    expect(pickTrack([('spa', 'Forzado')], TrackLang.es), isNull);
+    expect(pickTrack([('spa', 'Forzado')], TrackLang.es, subtitles: false), 0, reason: 'audio has no forced');
+    expect(pickTrack(tracks, TrackLang.fr), isNull);
+    expect(trackIsLang('es-MX', null, TrackLang.es), isTrue);
+    expect(trackIsLang('est', null, TrackLang.es), isFalse, reason: 'Estonian is not Spanish');
+  });
 }
