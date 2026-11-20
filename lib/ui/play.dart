@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../iptv/xtream.dart';
 import '../platform/win_window.dart';
+import '../player/own_player.dart';
 import '../player/vlc.dart';
 import '../state/app_state.dart';
 import 'i18n.dart';
@@ -45,6 +46,17 @@ Future<void> playWithChecks(
     );
     if (go != true) return;
   }
+  // The screen that started the video can be gone by the end: a card of
+  // «Continuar viendo» is rebuilt when the window changes size (the small
+  // window on top, 2.4.0) or the row changes. Then the next-episode card
+  // shows from the app's navigator instead (2.4.1, Jose: it just went back
+  // to Inicio).
+  BuildContext? live() {
+    if (context.mounted) return context;
+    final c = navigatorKey.currentState?.overlay?.context;
+    return c != null && c.mounted ? c : null;
+  }
+
   // Windows: credits reached while VLC plays.
   (CatalogItem, Episode)? acceptedNext;
   var declined = false;
@@ -52,19 +64,21 @@ Future<void> playWithChecks(
   var vlcClosed = false;
   Future<void> onNearEnd() async {
     final e = state.nearEnd.value;
-    if (e == null || asking || !context.mounted) return;
+    if (e == null || asking || live() == null) return;
     asking = true;
     final next = await state.nextAfter(e);
-    if (next == null || !context.mounted) return;
+    final c = live();
+    if (next == null || c == null || !c.mounted) return;
     // The own player is inside the app: the message shows over the video.
     final outside = !state.useOwnPlayer;
     if (outside) WinWindow.bringToFront();
-    final go = await showNextEpisode(context, next.$2);
+    final go = await showNextEpisode(c, next.$2);
     if (outside) WinWindow.release();
     if (go && vlcClosed) {
       // VLC was closed while the message was up: start it from here.
-      if (context.mounted) {
-        await playWithChecks(context, (s) => s.playEpisode(next.$1, next.$2), checkConnections: false);
+      final c2 = live();
+      if (c2 != null && c2.mounted) {
+        await playWithChecks(c2, (s) => s.playEpisode(next.$1, next.$2), checkConnections: false);
       }
     } else if (go) {
       acceptedNext = next;
@@ -90,16 +104,18 @@ Future<void> playWithChecks(
   }
 
   final finished = state.takeUpNext();
-  if (!context.mounted) return;
+  if (live() == null) return;
   var next = acceptedNext;
   if (next == null && finished != null && !declined && !asking) {
     next = await state.nextAfter(finished);
-    if (next == null || !context.mounted) return;
-    if (!await showNextEpisode(context, next.$2)) return;
+    final c = live();
+    if (next == null || c == null || !c.mounted) return;
+    if (!await showNextEpisode(c, next.$2)) return;
   }
-  if (next == null || !context.mounted) return;
+  final c = live();
+  if (next == null || c == null || !c.mounted) return;
   final (series, ep) = next;
-  await playWithChecks(context, (s) => s.playEpisode(series, ep), checkConnections: false);
+  await playWithChecks(c, (s) => s.playEpisode(series, ep), checkConnections: false);
 }
 
 /// "Siguiente: T3 E4": a small card in the corner, over the video, with a
