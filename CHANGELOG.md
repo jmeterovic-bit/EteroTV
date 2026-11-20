@@ -1,5 +1,9 @@
 # Cambios
 
+## 2.4.1
+- Siguiente episodio: vuelve a aparecer la tarjeta al final de un capítulo abierto desde «Continuar viendo» después de usar la ventana pequeña. Al cambiar el tamaño de la ventana, Inicio se rearma y la tarjeta se perdía junto con la pantalla que abrió el video; el reproductor terminaba y volvía a Inicio sin ofrecer el siguiente. Ahora la tarjeta sale igual.
+- Windows: si el capítulo terminó (o elegiste «Ver ahora») en la ventana pequeña, el siguiente también se abre en la ventana pequeña.
+
 ## 2.4.0
 - Windows: «Ventana pequeña encima», un botón nuevo en la barra del reproductor. La ventana de EteroTV se achica a la esquina de abajo a la derecha (480 de ancho, con la forma del video) y queda encima de los otros programas mientras trabajas. Se puede mover por su barra de título. Al pasar el mouse aparecen pausa, volver al tamaño normal y salir; doble clic o Esc también la devuelven a su tamaño. Al salir del video la ventana vuelve a como estaba.
 - Subtítulos en la ventanita (Windows y la imagen en imagen de Android): si están activados, se siguen viendo, con un tamaño pensado para la ventana chica (antes se habrían achicado hasta no leerse). Respetan el tamaño elegido (Pequeña…Muy grande).

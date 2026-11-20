@@ -174,6 +174,10 @@ class OwnPlayer extends VlcLauncher {
 
   VoidCallback? _close;
 
+  /// Windows: the last video was in the small window when it ended or the
+  /// next episode was started, so the next one opens small too (2.4.1).
+  bool _miniNext = false;
+
   @override
   Future<void> stop() async => _close?.call();
 
@@ -184,6 +188,8 @@ class OwnPlayer extends VlcLauncher {
     int startSecs = 0,
     void Function(int positionSecs, int lengthSecs)? onProgress,
   }) async {
+    final mini = _miniNext;
+    _miniNext = false;
     final epg = nextEpg;
     final health = nextHealth;
     nextEpg = null;
@@ -214,6 +220,8 @@ class OwnPlayer extends VlcLauncher {
             epg: epg,
             onHealth: health,
             onProgress: onProgress,
+            startMini: mini,
+            onMiniAtEnd: (m) => _miniNext = m,
             onOpen: (c) => _close = c,
             onDone: (r) {
               _close = null;
@@ -245,7 +253,16 @@ class OwnPlayerScreen extends StatefulWidget {
     this.onProgress,
     this.onOpen,
     this.onDone,
+    this.startMini = false,
+    this.onMiniAtEnd,
   });
+
+  /// Windows: open in the small window on top (the episode before was in it).
+  final bool startMini;
+
+  /// Told when the screen goes whether it was small and the video ended (or
+  /// the app closed it for the next episode).
+  final void Function(bool mini)? onMiniAtEnd;
 
   final String url;
   final String title;
@@ -354,6 +371,10 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   /// Windows: the window is small and above the other programs (2.4.0).
   bool _mini = false;
 
+  /// Closed by the app to play the next episode.
+  bool _forNext = false;
+  bool _miniPending = false;
+
   /// The video is in a small window (Android picture in picture, or [_mini]).
   bool get _small => _mini || Pip.active.value;
 
@@ -410,7 +431,11 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    widget.onOpen?.call(close);
+    // OwnPlayer.stop() is only used to start the next episode.
+    widget.onOpen?.call(() {
+      _forNext = true;
+      close();
+    });
     enterTvFullScreen();
     _subs
       ..add(
@@ -445,7 +470,17 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
           _updatePip();
         }),
       )
-      ..add(_player.stream.width.listen((_) => _updatePip()))
+      ..add(
+        _player.stream.width.listen((w) {
+          _updatePip();
+          // The next episode of one watched in the small window opens small,
+          // once the video's shape is known.
+          if (_miniPending && (w ?? 0) > 0) {
+            _miniPending = false;
+            unawaited(_toggleMini());
+          }
+        }),
+      )
       ..add(_player.stream.tracks.listen(_chooseLanguages))
       ..add(_player.stream.buffering.listen((v) => setState(() => _buffering = v)))
       ..add(
@@ -469,6 +504,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
         }),
       );
     Pip.onClosed = close;
+    _miniPending = widget.startMini && Platform.isWindows;
     Pip.active.addListener(_onPip);
     _start();
     _showOverlay();
@@ -621,6 +657,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     Pip.active.removeListener(_onPip);
     if (Pip.onClosed == close) Pip.onClosed = null;
     unawaited(Pip.allow(false));
+    widget.onMiniAtEnd?.call(_mini && (_ended || _forNext));
     if (_mini) WinMini.restore();
     unawaited(_release(_player));
     leaveTvFullScreen();
