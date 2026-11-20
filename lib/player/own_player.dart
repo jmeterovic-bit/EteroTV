@@ -9,6 +9,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../iptv/xtream.dart';
 import '../platform/device.dart';
 import '../platform/pip.dart';
+import '../platform/win_window.dart';
 import '../ui/i18n.dart';
 import '../ui/remote.dart';
 import 'vlc.dart';
@@ -32,6 +33,39 @@ Map<String, String> mpvTrackOptions(TrackLang audio, TrackLang subs) => {
   'subs-fallback-forced': 'no',
 };
 
+/// Whether a track (its language tag and title) is in [lang]. Any variant
+/// counts: «Español (Latinoamérica)», es-419, es-MX, «Castellano», «Latino»
+/// (2.4.0, Jose: mpv only took the plain «es»/«spa» tags).
+bool trackIsLang(String? language, String? title, TrackLang lang) {
+  final tag = (language ?? '').toLowerCase().trim();
+  final name = (title ?? '').toLowerCase();
+  final (codes, words) = switch (lang) {
+    TrackLang.es => (['es', 'spa', 'esp', 'lat'], ['español', 'espanol', 'spanish', 'castellano', 'latino']),
+    TrackLang.en => (['en', 'eng'], ['english', 'inglés', 'ingles', 'anglais']),
+    TrackLang.fr => (['fr', 'fra', 'fre'], ['français', 'francais', 'french', 'francés', 'frances']),
+    _ => (const <String>[], const <String>[]),
+  };
+  if (codes.any((c) => tag == c || tag.startsWith('$c-') || tag.startsWith('${c}_'))) return true;
+  return words.any((w) => name.contains(w) || tag.contains(w));
+}
+
+/// A subtitle track only for the foreign bits («Forzado», «Forzados», «Forced»):
+/// never chosen on its own.
+bool trackIsForced(String? title) {
+  final t = (title ?? '').toLowerCase();
+  return t.contains('forzad') || t.contains('forced') || t.contains('forcé');
+}
+
+/// Which of the [tracks] ((language, title) each) to use for [lang]: the
+/// first one in that language that is not forced (subtitles), or null.
+int? pickTrack(List<(String?, String?)> tracks, TrackLang lang, {bool subtitles = true}) {
+  for (final (i, (language, title)) in tracks.indexed) {
+    if (subtitles && trackIsForced(title)) continue;
+    if (trackIsLang(language, title, lang)) return i;
+  }
+  return null;
+}
+
 /// How big the subtitles are (Ajustes → Reproductor, or «Audio y
 /// subtítulos» while watching; per device, since each screen is seen from
 /// its own distance).
@@ -47,15 +81,28 @@ enum SubSize {
   static SubSize fromName(String? n) => values.firstWhere((d) => d.name == n, orElse: () => normal);
 
   /// media_kit draws the subtitles itself: its normal style, scaled.
-  SubtitleViewConfiguration get configuration => SubtitleViewConfiguration(
-    style: TextStyle(
-      height: 1.4,
-      fontSize: 32 * scale,
-      color: const Color(0xffffffff),
-      backgroundColor: const Color(0xaa000000),
-    ),
+  SubtitleViewConfiguration get configuration => SubtitleViewConfiguration(style: _style);
+
+  TextStyle get _style => TextStyle(
+    height: 1.4,
+    fontSize: 32 * scale,
+    color: const Color(0xffffffff),
+    backgroundColor: const Color(0xaa000000),
+  );
+
+  /// In a small window (picture in picture, or the small window on top of
+  /// Windows), 2.4.0: media_kit shrinks the text with the square root of the
+  /// area, which left it unreadable at a quarter of the screen. Here the
+  /// text follows the window's height instead (about 5 % of it at Normal).
+  SubtitleViewConfiguration compact(double height) => SubtitleViewConfiguration(
+    style: _style,
+    textScaler: TextScaler.linear(compactSubScale(height)),
+    padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
   );
 }
+
+/// How much the subtitle text is scaled in a small window [height] tall.
+double compactSubScale(double height) => (height * 0.055 / 32).clamp(0.2, 1.0);
 
 /// Live channels: what to do when the stream stops. The server sometimes
 /// drops the connection (seen on the Fire TV after ~40 min, 2026-11-13):
@@ -304,6 +351,31 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     unawaited(Pip.allow(_playing && !_closing, width: w > 0 ? w : 16, height: h > 0 ? h : 9));
   }
 
+  /// Windows: the window is small and above the other programs (2.4.0).
+  bool _mini = false;
+
+  /// The video is in a small window (Android picture in picture, or [_mini]).
+  bool get _small => _mini || Pip.active.value;
+
+  Future<void> _toggleMini() async {
+    if (!Platform.isWindows) return;
+    if (_mini) {
+      WinMini.restore();
+      setState(() => _mini = false);
+      _showOverlay();
+      return;
+    }
+    if (_fullscreen) {
+      _fullscreen = false;
+      await defaultExitNativeFullscreen();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+    final ok = WinMini.shrink(videoW: _player.state.width ?? 16, videoH: _player.state.height ?? 9);
+    if (!mounted) return;
+    setState(() => _mini = ok);
+    _hideOverlay();
+  }
+
   void _onPip() {
     if (!mounted) return;
     if (Pip.active.value) {
@@ -374,6 +446,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
         }),
       )
       ..add(_player.stream.width.listen((_) => _updatePip()))
+      ..add(_player.stream.tracks.listen(_chooseLanguages))
       ..add(_player.stream.buffering.listen((v) => setState(() => _buffering = v)))
       ..add(
         _player.stream.error.listen((e) {
@@ -412,6 +485,41 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     }
     if (Platform.isAndroid) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
+  }
+
+  /// The profile's languages, chosen by EteroTV once the tracks are known
+  /// (mpv's `alang`/`slang` only match exact tags). Once per video, so a
+  /// track picked by hand stays.
+  bool _audioChosen = false;
+  bool _subsChosen = false;
+
+  void _chooseLanguages(Tracks t) {
+    if (_closing) return;
+    final audio = [
+      for (final a in t.audio)
+        if (a.id != 'auto' && a.id != 'no') a,
+    ];
+    final subs = [
+      for (final x in t.subtitle)
+        if (x.id != 'auto' && x.id != 'no') x,
+    ];
+    final current = _player.state.track;
+    if (!_audioChosen && audio.isNotEmpty && widget.audio.vlcCodes != null) {
+      _audioChosen = true;
+      final now = current.audio;
+      if (!trackIsLang(now.language, now.title, widget.audio)) {
+        final i = pickTrack([for (final a in audio) (a.language, a.title)], widget.audio, subtitles: false);
+        if (i != null) unawaited(_player.setAudioTrack(audio[i]));
+      }
+    }
+    if (!_subsChosen && subs.isNotEmpty && widget.subs.vlcCodes != null) {
+      _subsChosen = true;
+      final now = current.subtitle;
+      if (!trackIsLang(now.language, now.title, widget.subs) || trackIsForced(now.title)) {
+        final i = pickTrack([for (final x in subs) (x.language, x.title)], widget.subs);
+        if (i != null) unawaited(_player.setSubtitleTrack(subs[i]));
+      }
     }
   }
 
@@ -513,6 +621,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     Pip.active.removeListener(_onPip);
     if (Pip.onClosed == close) Pip.onClosed = null;
     unawaited(Pip.allow(false));
+    if (_mini) WinMini.restore();
     unawaited(_release(_player));
     leaveTvFullScreen();
     if (Platform.isAndroid) SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -617,6 +726,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _Action(Icons.settings, tr('Tamaño de los subtítulos'), _chooseSubSize),
     _Action(Icons.av_timer, tr('Sincronizar el audio'), _chooseAudioDelay),
     if (!touch) _Action(Icons.fullscreen, tr('Pantalla completa'), _toggleFullscreen),
+    if (Platform.isWindows) _Action(Icons.picture_in_picture_alt, tr('Ventana pequeña encima'), _toggleMini),
   ];
 
   int get _playIndex => _live ? 0 : 1;
@@ -652,12 +762,14 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
       _player.play();
     } else if (k == LogicalKeyboardKey.mediaPause) {
       _player.pause();
+    } else if (k == LogicalKeyboardKey.escape && _mini) {
+      if (!repeat) _toggleMini();
     } else if (k == LogicalKeyboardKey.mediaStop || k == LogicalKeyboardKey.escape) {
       close();
     } else if (k == LogicalKeyboardKey.keyL || k == LogicalKeyboardKey.contextMenu) {
       if (!repeat) _chooseTracks();
     } else if (k == LogicalKeyboardKey.keyF && !Platform.isAndroid) {
-      if (!repeat) _toggleFullscreen();
+      if (!repeat) _mini ? _toggleMini() : _toggleFullscreen();
     } else if (!_overlay) {
       // Bar hidden: ◀ ▶ move the video, OK pauses, anything else shows the bar.
       if (left || right) {
@@ -890,7 +1002,15 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Video(controller: _video, controls: NoVideoControls, subtitleViewConfiguration: _subSize.configuration),
+              // Subtitles also show in a small window, at a size that can be
+              // read there (Jose, 2026-11-20).
+              Video(
+                controller: _video,
+                controls: NoVideoControls,
+                subtitleViewConfiguration: _small
+                    ? _subSize.compact(MediaQuery.sizeOf(context).height)
+                    : _subSize.configuration,
+              ),
               // Phone: tap shows the bar, double tap on a side jumps 10 s
               // (like VLC). Windows: click pauses, double click is full screen.
               Row(
@@ -904,7 +1024,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                           touch ? _toggleOverlay() : _playPause();
                         },
                         onDoubleTap: !touch
-                            ? _toggleFullscreen
+                            ? (_mini ? _toggleMini : _toggleFullscreen)
                             : side == 0
                             ? _playPause
                             : () => _seekBy(side < 0 ? -_step : _step),
@@ -937,13 +1057,42 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
                     child: Text(_flash!, style: const TextStyle(color: Colors.white, fontSize: 28)),
                   ),
                 ),
-              if (_overlay && !Pip.active.value) _bar(touch),
+              if (_overlay && !_small) _bar(touch),
+              if (_overlay && _mini) _miniBar(),
             ],
           ),
         ),
       ),
     );
   }
+
+  /// The small window on top: only pause, back to normal size and leave.
+  Widget _miniBar() => Align(
+    alignment: Alignment.topRight,
+    child: Container(
+      margin: const EdgeInsets.all(6),
+      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final a in [
+            _Action(_playing ? Icons.pause : Icons.play_arrow, _playing ? tr('Pausa') : tr('Reproducir'), _playPause),
+            _Action(Icons.open_in_full, tr('Volver al tamaño normal'), _toggleMini),
+            _Action(Icons.close, tr('Salir'), close),
+          ])
+            ExcludeFocus(
+              child: IconButton(
+                color: Colors.white,
+                iconSize: 22,
+                tooltip: a.tip,
+                icon: Icon(a.icon),
+                onPressed: a.onTap,
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
 
   Widget _bar(bool touch) {
     const white = TextStyle(color: Colors.white);
