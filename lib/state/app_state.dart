@@ -1466,11 +1466,70 @@ class AppState extends ChangeNotifier {
       _play(_episodeEntry(series, ep), client!.episodeUrl(ep.id, ep.extension));
 
   /// From the "Continue watching" row.
-  Future<String?> resume(LibraryEntry e) {
+  ///
+  /// An episode is looked up again in its series first (2.4.2): the entry
+  /// keeps the file's id and extension from when it was first played, and
+  /// the provider can replace the file since. Jose saw, only when resuming
+  /// from Inicio, subtitles of another episode mixed with the right ones,
+  /// on the TV and the phone (the entry is synced); opening the episode
+  /// from its series played it right.
+  Future<String?> resume(LibraryEntry e, {Future<SeriesInfo> Function(String seriesId)? fetch}) async {
     final x = client!;
-    final url = e.kind == Kind.movie ? x.movieUrl(e.id, e.extension) : x.episodeUrl(e.id, e.extension);
-    x.close();
+    final String url;
+    try {
+      if (e.kind == Kind.episode && e.seriesId.isNotEmpty) {
+        Episode? now;
+        try {
+          final info = await (fetch ?? x.seriesInfo)(e.seriesId).timeout(const Duration(seconds: 5));
+          now = currentEpisodeOf(e, info);
+        } catch (_) {
+          // No answer: play what the entry has, as before.
+        }
+        if (now != null && now.id != e.id) {
+          e = await _moveEpisode(e, now);
+        } else if (now != null && now.extension.isNotEmpty && now.extension != e.extension) {
+          e.extension = now.extension;
+        }
+      }
+      url = e.kind == Kind.movie ? x.movieUrl(e.id, e.extension) : x.episodeUrl(e.id, e.extension);
+    } finally {
+      x.close();
+    }
     return _play(e, url);
+  }
+
+  /// The provider gave the episode a new id: its progress goes to the new
+  /// one, and the old entry leaves «Continuar viendo» (what was seen stays).
+  Future<LibraryEntry> _moveEpisode(LibraryEntry old, Episode now) async {
+    final e =
+        entry(Kind.episode, now.id) ??
+        LibraryEntry(
+          kind: Kind.episode,
+          id: now.id,
+          name: now.title,
+          icon: old.icon,
+          extension: now.extension,
+          seriesId: old.seriesId,
+          seriesName: old.seriesName,
+          season: now.season,
+          episode: now.number,
+          tmdbId: old.tmdbId,
+          year: old.year,
+          updatedAt: _now,
+          device: deviceId,
+        );
+    if (e.positionSecs == 0) {
+      e
+        ..positionSecs = old.positionSecs
+        ..durationSecs = old.durationSecs > 0 ? old.durationSecs : now.durationSecs;
+    }
+    old
+      ..positionSecs = 0
+      ..lastPlayed = 0
+      ..updatedAt = _now
+      ..device = deviceId;
+    await _save(old);
+    return e;
   }
 
   // ---- Next episode ----
@@ -1722,3 +1781,17 @@ Future<(List<Category>, List<CatalogItem>)> downloadKind(Credentials c, Kind kin
     x.close();
   }
 });
+
+/// The episode of [e] in the series as the provider lists it now: the same
+/// id, or else the same season and number. Null if it is not there.
+Episode? currentEpisodeOf(LibraryEntry e, SeriesInfo info) {
+  final all = [for (final eps in info.seasons.values) ...eps];
+  for (final ep in all) {
+    if (ep.id == e.id) return ep;
+  }
+  if (e.season <= 0 || e.episode <= 0) return null;
+  for (final ep in all) {
+    if (ep.season == e.season && ep.number == e.episode) return ep;
+  }
+  return null;
+}

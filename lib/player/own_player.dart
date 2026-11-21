@@ -30,6 +30,9 @@ Map<String, String> mpvTrackOptions(TrackLang audio, TrackLang subs) => {
   'alang': ?audio.vlcCodes,
   'slang': ?subs.vlcCodes,
   'sid': subs == TrackLang.none ? 'no' : 'auto',
+  // Only one subtitle on screen: a second one showed with the first on a
+  // resumed episode (2.4.2).
+  'secondary-sid': 'no',
   'subs-fallback-forced': 'no',
 };
 

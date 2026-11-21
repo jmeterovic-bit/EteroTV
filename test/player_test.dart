@@ -27,11 +27,16 @@ void main() {
   });
 
   test('the own player asks mpv for the languages and never for forced subtitles alone', () {
-    expect(mpvTrackOptions(TrackLang.original, TrackLang.none), {'sid': 'no', 'subs-fallback-forced': 'no'});
+    expect(mpvTrackOptions(TrackLang.original, TrackLang.none), {
+      'sid': 'no',
+      'secondary-sid': 'no',
+      'subs-fallback-forced': 'no',
+    });
     expect(mpvTrackOptions(TrackLang.es, TrackLang.en), {
       'alang': 'es,spa',
       'slang': 'en,eng',
       'sid': 'auto',
+      'secondary-sid': 'no',
       'subs-fallback-forced': 'no',
     });
   });
