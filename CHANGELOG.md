@@ -1,5 +1,10 @@
 # Cambios
 
+## 2.5.0
+- TV en vivo: la barra del reproductor dice si estás «EN VIVO» (punto rojo) o cuántos segundos vas atrasado («12 s detrás del vivo»). El atraso aparece cuando el canal se traba y sigue, o cuando lo pausas: lo que sigue llegando queda guardado y se ve más tarde.
+- Botón «Ir al vivo» en la barra de los canales: salta a lo último que llegó del servidor. No puede adelantarse al proveedor, porque el atraso de su retransmisión respecto a la señal original no se puede medir.
+- Android 12 o más nuevo: la imagen en imagen también se activa con el botón (o el gesto) de apps recientes, no solo con Inicio.
+
 ## 2.4.2
 - «Continuar viendo»: antes de retomar un capítulo, EteroTV lo vuelve a buscar en la serie y usa el archivo que el proveedor tiene ahora. Si el proveedor lo cambió (otro número o formato), el avance pasa al nuevo. Antes se abría el archivo guardado la primera vez, y en un capítulo salían subtítulos de otro mezclados con los correctos, en la TV y en el celular. Desde la serie se veía bien.
 - Reproductor: nunca muestra dos subtítulos a la vez (se apaga el subtítulo secundario de mpv).

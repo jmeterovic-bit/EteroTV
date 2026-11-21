@@ -394,4 +394,9 @@ const en = <String, String>{
   'Para todos los videos en este aparato (la TV o la barra de sonido pueden atrasar el sonido). Mientras ves, el botón del reloj también ajusta solo ese video.': 'For every video on this device (the TV or sound bar can delay the sound). While watching, the clock button can also adjust just that video.',
   'Ventana pequeña encima': 'Small window on top',
   'Volver al tamaño normal': 'Back to normal size',
+  'Ir al vivo': 'Go live',
+  'Ya estás en vivo': 'You\'re already live',
+  'En vivo': 'Live',
+  'EN VIVO': 'LIVE',
+  '{0} detrás del vivo': '{0} behind live',
 };

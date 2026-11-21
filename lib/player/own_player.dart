@@ -517,6 +517,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
       _openTimer = Timer(const Duration(seconds: 20), () {
         if (!_started && !_closing) _health(false);
       });
+      _liveTimer = Timer.periodic(const Duration(seconds: 2), (_) => _measureLive());
       _stallTimer = Timer.periodic(const Duration(seconds: 5), (_) {
         if (_closing || _reconnecting || _signalLost || !_started) return;
         if (_player.state.playing && DateTime.now().difference(_lastMovedAt) > liveStall) _reconnect();
@@ -560,6 +561,65 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
         if (i != null) unawaited(_player.setSubtitleTrack(subs[i]));
       }
     }
+  }
+
+  /// Live channels (2.5.0, Jose): how far the picture is behind the newest
+  /// part of the channel that already arrived. After a stall, or a pause,
+  /// mpv keeps playing from where it was and the rest piles up in its
+  /// buffer. The delay of the provider itself cannot be measured: nothing
+  /// says when the original was broadcast.
+  double _behind = 0;
+  Timer? _liveTimer;
+
+  Future<(double, double)?> _liveEdge() async {
+    final native = _player.platform;
+    if (native is! NativePlayer || _closing) return null;
+    try {
+      final cached = double.tryParse(await native.getProperty('demuxer-cache-time'));
+      final pos = double.tryParse(await native.getProperty('time-pos'));
+      if (cached == null || pos == null) return null;
+      return (pos, cached);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _measureLive() async {
+    if (!_started || _reconnecting) return;
+    final edge = await _liveEdge();
+    if (edge == null || !mounted) return;
+    final behind = liveBehind(edge.$1, edge.$2);
+    if ((behind - _behind).abs() >= 0.5) setState(() => _behind = behind);
+  }
+
+  /// «Ir al vivo»: jumps to the newest part that arrived (keeps half a
+  /// second so it does not stall at once). It cannot get ahead of the server.
+  Future<void> _goLive() async {
+    _showOverlay();
+    final edge = await _liveEdge();
+    if (edge == null || !mounted) return;
+    final (pos, cached) = edge;
+    if (liveBehind(pos, cached) < liveNearSecs) {
+      _flashText(tr('Ya estás en vivo'));
+    } else {
+      final native = _player.platform;
+      try {
+        if (native is NativePlayer) {
+          await native.command(['seek', (cached - 0.5).toStringAsFixed(2), 'absolute']);
+        }
+      } catch (_) {}
+      if (!_player.state.playing) unawaited(_player.play());
+      setState(() => _behind = 0);
+      _flashText(tr('En vivo'));
+    }
+  }
+
+  void _flashText(String text) {
+    _flashTimer?.cancel();
+    setState(() => _flash = text);
+    _flashTimer = Timer(const Duration(milliseconds: 900), () {
+      if (mounted) setState(() => _flash = null);
+    });
   }
 
   Future<void> _start() async {
@@ -656,6 +716,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _guideTimer?.cancel();
     _stallTimer?.cancel();
     _openTimer?.cancel();
+    _liveTimer?.cancel();
     _focus.dispose();
     Pip.active.removeListener(_onPip);
     if (Pip.onClosed == close) Pip.onClosed = null;
@@ -761,6 +822,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
   List<_Action> _actions(bool touch) => [
     if (!_live) _Action(Icons.replay_10, tr('Atrás 10 s'), () => _seekBy(-_step)),
     _Action(_playing ? Icons.pause : Icons.play_arrow, _playing ? tr('Pausa') : tr('Reproducir'), _playPause, size: 40),
+    if (_channel) _Action(Icons.live_tv, tr('Ir al vivo'), _goLive),
     if (!_live) _Action(Icons.forward_10, tr('Adelante 10 s'), () => _seekBy(_step)),
     _Action(Icons.subtitles, tr('Audio y subtítulos'), _chooseTracks),
     _Action(Icons.settings, tr('Tamaño de los subtítulos'), _chooseSubSize),
@@ -1195,6 +1257,17 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (_channel && _started)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [
+                        Icon(Icons.circle, size: 10, color: _behind < liveNearSecs ? Colors.redAccent : Colors.white38),
+                        const SizedBox(width: 6),
+                        Text(liveLagLabel(_behind), style: white.copyWith(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
                 if (on != null) ...[
                   Text(
                     tr('Ahora: {0}', [on.title]),
@@ -1283,6 +1356,19 @@ const mpvLiveOptions = {
   'stream-lavf-o': 'reconnect=1,reconnect_streamed=1,reconnect_delay_max=5',
   'demuxer-max-back-bytes': '4194304',
 };
+
+/// Closer than this to the newest part received counts as live.
+const liveNearSecs = 2.0;
+
+/// Seconds the picture is behind the newest part received (never negative).
+double liveBehind(double pos, double cached) => cached > pos ? cached - pos : 0;
+
+/// «EN VIVO», or «12 s detrás del vivo» / «1:05 detrás del vivo».
+String liveLagLabel(double behind) {
+  if (behind < liveNearSecs) return tr('EN VIVO');
+  final s = behind.round();
+  return tr('{0} detrás del vivo', [s < 60 ? '$s s' : formatClock(Duration(seconds: s))]);
+}
 
 /// The sound delay can go from −5 s to +5 s, in steps of 50 ms.
 const audioDelayStep = 50;

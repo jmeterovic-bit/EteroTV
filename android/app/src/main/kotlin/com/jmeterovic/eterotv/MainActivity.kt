@@ -65,6 +65,7 @@ class MainActivity : FlutterActivity() {
                             (call.argument<Number>("width") ?: 16).toInt(),
                             (call.argument<Number>("height") ?: 9).toInt(),
                         )
+                        applyAutoPip()
                         result.success(pipSupported())
                     }
                     else -> result.notImplemented()
@@ -88,11 +89,33 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /**
+     * Android 12+: the system itself shrinks the video when leaving the app
+     * by any way (Home, and also the recent apps button or gesture, which
+     * does not call onUserLeaveHint; 2.5.0, Jose).
+     */
+    private fun applyAutoPip() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || !pipSupported()) return
+        try {
+            setPictureInPictureParams(
+                PictureInPictureParams.Builder()
+                    .setAspectRatio(pipRatio)
+                    .setAutoEnterEnabled(pipAllowed && pending == null)
+                    .build()
+            )
+        } catch (_: Exception) {
+        }
+    }
+
     /** Home or another app while a video plays: keep it in a small window. */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (!pipAllowed || pending != null || !pipSupported()) return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        // Android 12+ phones shrink it by themselves (auto-enter); doing it
+        // here too would run the animation twice. TVs keep doing it here.
+        if (isInPictureInPictureMode) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !isTv()) return
         try {
             enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(pipRatio).build())
         } catch (_: Exception) {
