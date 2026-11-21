@@ -106,4 +106,12 @@ void main() {
     expect(trackIsLang('es-MX', null, TrackLang.es), isTrue);
     expect(trackIsLang('est', null, TrackLang.es), isFalse, reason: 'Estonian is not Spanish');
   });
+
+  test('live channels: how far behind the newest part received, and its label', () {
+    expect(liveBehind(100, 112.4), closeTo(12.4, 0.01));
+    expect(liveBehind(100, 99), 0);
+    expect(liveLagLabel(1.2), 'EN VIVO');
+    expect(liveLagLabel(12.4), '12 s detrás del vivo');
+    expect(liveLagLabel(65), '1:05 detrás del vivo');
+  });
 }

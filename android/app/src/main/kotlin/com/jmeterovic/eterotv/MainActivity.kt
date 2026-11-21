@@ -11,6 +11,9 @@ import android.net.Uri
 import android.app.PictureInPictureParams
 import android.os.Build
 import android.util.Rational
+import android.media.MediaMetadata
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
 import androidx.annotation.RequiresApi
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -35,6 +38,10 @@ class MainActivity : FlutterActivity() {
     private var stopped = false
     private var leftPip = false
 
+    // Headphones' play/pause (2.5.0): they reach a media session, not the screen.
+    private var mediaChannel: MethodChannel? = null
+    private var session: MediaSession? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "eterotv/vlc")
@@ -56,6 +63,21 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        mediaChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "eterotv/media").apply {
+            setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "update" -> {
+                        updateSession(
+                            call.argument<Boolean>("open") == true,
+                            call.argument<Boolean>("playing") == true,
+                            call.argument<String>("title") ?: "",
+                        )
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
         pipChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "eterotv/pip").apply {
             setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -65,12 +87,58 @@ class MainActivity : FlutterActivity() {
                             (call.argument<Number>("width") ?: 16).toInt(),
                             (call.argument<Number>("height") ?: 9).toInt(),
                         )
+                        applyAutoPip()
                         result.success(pipSupported())
                     }
                     else -> result.notImplemented()
                 }
             }
         }
+    }
+
+    /** While the own player is open: a media session that takes the
+     *  headphones' buttons (play/pause, the single button of wired ones). */
+    private fun updateSession(open: Boolean, playing: Boolean, title: String) {
+        if (!open) {
+            session?.let {
+                it.isActive = false
+                it.release()
+            }
+            session = null
+            return
+        }
+        try {
+            val s = session ?: MediaSession(this, "EteroTV").also {
+                it.setCallback(object : MediaSession.Callback() {
+                    override fun onPlay() { mediaChannel?.invokeMethod("action", "play") }
+                    override fun onPause() { mediaChannel?.invokeMethod("action", "pause") }
+                    override fun onStop() { mediaChannel?.invokeMethod("action", "pause") }
+                })
+                session = it
+            }
+            s.setPlaybackState(
+                PlaybackState.Builder()
+                    .setActions(
+                        PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or
+                            PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_STOP
+                    )
+                    .setState(
+                        if (playing) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED,
+                        PlaybackState.PLAYBACK_POSITION_UNKNOWN,
+                        1f,
+                    )
+                    .build()
+            )
+            s.setMetadata(MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE, title).build())
+            s.isActive = true
+        } catch (_: Exception) {
+        }
+    }
+
+    override fun onDestroy() {
+        session?.release()
+        session = null
+        super.onDestroy()
     }
 
     private fun pipSupported(): Boolean =
@@ -88,11 +156,33 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /**
+     * Android 12+: the system itself shrinks the video when leaving the app
+     * by any way (Home, and also the recent apps button or gesture, which
+     * does not call onUserLeaveHint; 2.5.0, Jose).
+     */
+    private fun applyAutoPip() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || !pipSupported()) return
+        try {
+            setPictureInPictureParams(
+                PictureInPictureParams.Builder()
+                    .setAspectRatio(pipRatio)
+                    .setAutoEnterEnabled(pipAllowed && pending == null)
+                    .build()
+            )
+        } catch (_: Exception) {
+        }
+    }
+
     /** Home or another app while a video plays: keep it in a small window. */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (!pipAllowed || pending != null || !pipSupported()) return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        // Android 12+ phones shrink it by themselves (auto-enter); doing it
+        // here too would run the animation twice. TVs keep doing it here.
+        if (isInPictureInPictureMode) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !isTv()) return
         try {
             enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(pipRatio).build())
         } catch (_: Exception) {

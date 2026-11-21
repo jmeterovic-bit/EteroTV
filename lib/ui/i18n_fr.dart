@@ -395,4 +395,9 @@ const fr = <String, String>{
   'Para todos los videos en este aparato (la TV o la barra de sonido pueden atrasar el sonido). Mientras ves, el botón del reloj también ajusta solo ese video.': 'Pour toutes les vidéos sur cet appareil (la télé ou la barre de son peuvent retarder le son). Pendant la lecture, le bouton de l\'horloge règle aussi cette vidéo seule.',
   'Ventana pequeña encima': 'Petite fenêtre au premier plan',
   'Volver al tamaño normal': 'Revenir à la taille normale',
+  'Ir al vivo': 'Aller au direct',
+  'Ya estás en vivo': 'Vous êtes déjà en direct',
+  'En vivo': 'En direct',
+  'EN VIVO': 'EN DIRECT',
+  '{0} detrás del vivo': '{0} de retard sur le direct',
 };
