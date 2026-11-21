@@ -8,6 +8,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../iptv/xtream.dart';
 import '../platform/device.dart';
+import '../platform/media_keys.dart';
 import '../platform/pip.dart';
 import '../platform/win_window.dart';
 import '../ui/i18n.dart';
@@ -400,6 +401,20 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     _hideOverlay();
   }
 
+  /// Headphones' play/pause (Android media session).
+  void _onMediaKey(String action) {
+    if (_closing || !mounted) return;
+    switch (action) {
+      case 'play':
+        _player.play();
+      case 'pause':
+        _player.pause();
+      default:
+        _player.playOrPause();
+    }
+    if (!_small) _showOverlay();
+  }
+
   void _onPip() {
     if (!mounted) return;
     if (Pip.active.value) {
@@ -471,6 +486,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
         _player.stream.playing.listen((v) {
           setState(() => _playing = v);
           _updatePip();
+          if (!_closing) unawaited(MediaKeys.update(open: true, playing: v, title: widget.title));
         }),
       )
       ..add(
@@ -507,6 +523,7 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
         }),
       );
     Pip.onClosed = close;
+    MediaKeys.onAction = _onMediaKey;
     _miniPending = widget.startMini && Platform.isWindows;
     Pip.active.addListener(_onPip);
     _start();
@@ -721,6 +738,10 @@ class _OwnPlayerScreenState extends State<OwnPlayerScreen> {
     Pip.active.removeListener(_onPip);
     if (Pip.onClosed == close) Pip.onClosed = null;
     unawaited(Pip.allow(false));
+    if (MediaKeys.onAction == _onMediaKey) {
+      MediaKeys.onAction = null;
+      unawaited(MediaKeys.update(open: false));
+    }
     widget.onMiniAtEnd?.call(_mini && (_ended || _forNext));
     if (_mini) WinMini.restore();
     unawaited(_release(_player));
