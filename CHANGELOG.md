@@ -1,5 +1,10 @@
 # Cambios
 
+## 2.4.2
+- «Continuar viendo»: antes de retomar un capítulo, EteroTV lo vuelve a buscar en la serie y usa el archivo que el proveedor tiene ahora. Si el proveedor lo cambió (otro número o formato), el avance pasa al nuevo. Antes se abría el archivo guardado la primera vez, y en un capítulo salían subtítulos de otro mezclados con los correctos, en la TV y en el celular. Desde la serie se veía bien.
+- Reproductor: nunca muestra dos subtítulos a la vez (se apaga el subtítulo secundario de mpv).
+- Siguiente episodio después de la imagen en imagen en el celular: lo cubre el arreglo de 2.4.1, que también vale en Android (Inicio se rearma al achicarse la ventana y la tarjeta se perdía). Si con 2.4.1 o más nueva vuelve a pasar, avisar.
+
 ## 2.4.1
 - Siguiente episodio: vuelve a aparecer la tarjeta al final de un capítulo abierto desde «Continuar viendo» después de usar la ventana pequeña. Al cambiar el tamaño de la ventana, Inicio se rearma y la tarjeta se perdía junto con la pantalla que abrió el video; el reproductor terminaba y volvía a Inicio sin ofrecer el siguiente. Ahora la tarjeta sale igual.
 - Windows: si el capítulo terminó (o elegiste «Ver ahora») en la ventana pequeña, el siguiente también se abre en la ventana pequeña.

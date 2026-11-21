@@ -152,6 +152,33 @@ void main() {
     expect(s.entry(Kind.movie, 'm')!.favorite, isTrue, reason: '«seen» is only decided at the end');
   });
 
+  test('resuming an episode looks it up again: new extension, or new id with its progress', () async {
+    vlc.next = PlayResult(positionSecs: 600, durationSecs: 3000);
+    await s.playEpisode(series, ep(1, 2));
+    final e = s.entry(Kind.episode, 'e12')!;
+
+    Episode moved(String id, String ext) =>
+        Episode(id: id, season: 1, number: 2, title: 'E2', extension: ext, durationSecs: 3000);
+    var now = moved('e12', 'mp4');
+    Future<SeriesInfo> fetch(String id) async => SeriesInfo({
+      1: [ep(1, 1), now],
+    }, '');
+
+    vlc.next = PlayResult(positionSecs: 700, durationSecs: 3000);
+    await s.resume(e, fetch: fetch);
+    expect(s.entry(Kind.episode, 'e12')!.extension, 'mp4');
+
+    now = moved('n12', 'mkv');
+    vlc.whilePlaying = (_) async {
+      expect(s.entry(Kind.episode, 'n12')!.positionSecs, 700, reason: 'the progress moved to the new id');
+    };
+    vlc.next = PlayResult(positionSecs: 800, durationSecs: 3000);
+    await s.resume(s.entry(Kind.episode, 'e12')!, fetch: fetch);
+    expect(s.entry(Kind.episode, 'n12')!.positionSecs, 800);
+    expect(s.entry(Kind.episode, 'e12')!.positionSecs, 0, reason: 'the old one leaves Continuar viendo');
+    expect(s.continueWatching.map((x) => x.id), ['n12']);
+  });
+
   test('remove a series from Seguir viendo keeps what was seen', () async {
     await s.setEpisodeWatched(series, ep(1, 1), true);
     vlc.next = PlayResult(positionSecs: 600, durationSecs: 3000);
